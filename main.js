@@ -65,15 +65,20 @@ worldData.items.forEach(createItemMesh);
 function updateItemVisibility() {
     const itemsInCurrentRoom = worldData.items.filter(item => item.initialRoomId === currentRoomId);
     const itemIdsInCurrentRoom = new Set(itemsInCurrentRoom.map(item => item.id));
+    console.log(`[Visibility Check] Room: ${currentRoomId}. Items supposed to be here:`, Array.from(itemIdsInCurrentRoom)); // DEBUG
 
     itemMeshes.forEach((mesh, itemId) => {
+        let shouldBeVisible = false;
         // Check if item is in inventory first
         if (inventory.includes(itemId)) {
             mesh.visible = false;
+            shouldBeVisible = false; // Item is in inventory, hide it
         } else {
             // Otherwise, show it only if it belongs in the current room
-            mesh.visible = itemIdsInCurrentRoom.has(itemId);
+            shouldBeVisible = itemIdsInCurrentRoom.has(itemId);
         }
+        mesh.visible = shouldBeVisible;
+        console.log(`[Visibility Check] Item: ${itemId}, In Inventory: ${inventory.includes(itemId)}, Belongs in Room: ${itemIdsInCurrentRoom.has(itemId)}, Final Visibility: ${shouldBeVisible}`); // DEBUG
     });
 }
 
@@ -187,8 +192,9 @@ function animate() {
     if (transitioned) {
         currentRoom = getRoomById(currentRoomId);
         groundMaterial.color.setHex(currentRoom.color);
+        console.log(`[Transition] Set ground color to: ${currentRoom.color.toString(16)}`); // DEBUG
         updateItemVisibility(); // Update which items are visible
-        console.log(`Entered room: ${currentRoom.name} (ID: ${currentRoomId})`); // Log room change
+        console.log(`[Transition] Entered room: ${currentRoom.name} (ID: ${currentRoomId})`); // Log room change
 
         // Check for win condition
         if (currentRoom.winConditionItem && inventory.includes(currentRoom.winConditionItem)) {

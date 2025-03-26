@@ -4,7 +4,7 @@
 
 export const worldData = {
     rooms: [
-        { id: 0, name: "Gold Castle Entrance", color: 0xAAAAAA, connections: { north: { roomId: 1, lockedBy: 'gold_key' }, south: null, east: null, west: null }, winConditionItem: 'chalice' },
+        { id: 0, name: "Gold Castle Entrance", color: 0xAAAAAA, connections: { north: 1, south: null, east: null, west: null }, winConditionItem: 'chalice' }, // Temporarily unlocked
         { id: 1, name: "Main Hall", color: 0xBBBBBB, connections: { north: 2, south: 0, east: 3, west: 4 } },
         { id: 2, name: "Blue Maze 1", color: 0x0000FF, connections: { north: null, south: 1, east: null, west: null } }, // Simplified maze for now
         { id: 3, name: "East Wing", color: 0xCCCCCC, connections: { north: null, south: null, east: 5, west: 1 } }, // Connect East Wing to Throne Room
