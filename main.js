@@ -189,6 +189,16 @@ function animate() {
         groundMaterial.color.setHex(currentRoom.color);
         updateItemVisibility(); // Update which items are visible
         console.log(`Entered room: ${currentRoom.name} (ID: ${currentRoomId})`); // Log room change
+
+        // Check for win condition
+        if (currentRoom.winConditionItem && inventory.includes(currentRoom.winConditionItem)) {
+            console.log("YOU WIN! You brought the Chalice back to the Gold Castle!");
+            // Stop the game loop (or display a win message)
+            // For now, just log and maybe stop rendering - need a proper game state machine later
+            alert("YOU WIN! You brought the Chalice back to the Gold Castle!"); // Simple alert for now
+            // cancelAnimationFrame(animationFrameId); // Need to store the request ID to cancel
+            return; // Stop further processing this frame
+        }
     }
 
     // Collision detection for items
