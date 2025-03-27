@@ -1,7 +1,7 @@
 body {
     margin: 0;
     overflow: hidden; /* Hide scrollbars */
-    background-color: #000;
+    background-color: #000; /* Fallback, though scene background is primary */
 }
 
 canvas {
@@ -22,3 +22,5 @@ canvas {
 #inventory {
     margin-top: 5px;
 }
+
+/* Removed flicker keyframes and classes */

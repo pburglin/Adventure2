@@ -9,7 +9,8 @@ const inventory = []; // Player's inventory
 
 // Scene setup
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x222222); // Dark gray background, similar to original game
+const originalBackgroundColor = 0x222222; // Store original color
+scene.background = new THREE.Color(originalBackgroundColor); // Dark gray background
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -189,6 +190,20 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
+// Helper function to trigger scene background flicker
+let flickerTimeout = null; // To prevent overlapping flickers
+function triggerSceneFlicker(flickerColorHex = 0x888888, duration = 200) {
+    if (flickerTimeout) {
+        clearTimeout(flickerTimeout); // Clear any existing flicker timeout
+        scene.background.setHex(originalBackgroundColor); // Ensure it resets if interrupted
+    }
+    scene.background.setHex(flickerColorHex); // Set to flicker color
+    flickerTimeout = setTimeout(() => {
+        scene.background.setHex(originalBackgroundColor); // Reset to original color
+        flickerTimeout = null;
+    }, duration);
+}
+
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
@@ -316,10 +331,15 @@ function animate() {
         // Check for win condition
         if (currentRoom.winConditionItem && inventory.includes(currentRoom.winConditionItem)) {
             console.log("YOU WIN! You brought the Chalice back to the Gold Castle!");
-            // Stop the game loop (or display a win message)
-            // For now, just log and maybe stop rendering - need a proper game state machine later
-            alert("YOU WIN! You brought the Chalice back to the Gold Castle!"); // Simple alert for now
-            // cancelAnimationFrame(animationFrameId); // Need to store the request ID to cancel
+            // Continuous flicker for win condition
+            const winColors = [0x00ff00, 0xffff00, 0xff00ff, 0x00ffff];
+            let colorIndex = 0;
+            const winFlickerInterval = setInterval(() => {
+                triggerSceneFlicker(winColors[colorIndex], 200);
+                colorIndex = (colorIndex + 1) % winColors.length;
+            }, 200);
+            
+            alert("YOU WIN! You brought the Chalice back to the Gold Castle!");
             return; // Stop further processing this frame
         }
     }
@@ -341,6 +361,7 @@ function animate() {
             if (distance < dragonCollisionDistance) {
                 if (inventory.includes('sword')) {
                     // Kill dragon
+                    triggerSceneFlicker(0xff0000, 300); // Flicker scene background red when killing dragon
                     itemMesh.visible = false;
                     // We need a way to permanently remove the dragon or mark it as dead
                     // For now, just making it invisible works per session
@@ -350,6 +371,7 @@ function animate() {
                     // To make it permanent, we'd need to modify worldData or track state.
                 } else {
                     // Player is eaten
+                    triggerSceneFlicker(0xff0000, 300); // Flicker scene background red when player dies
                     console.log(`You were eaten by ${itemData.name}! GAME OVER`);
                     alert(`You were eaten by ${itemData.name}! GAME OVER`);
                     // Reset player position and inventory (simple reset)
@@ -367,6 +389,7 @@ function animate() {
             // Item pickup collision (only if not already in inventory)
             if (distance < pickupDistance) {
                 inventory.push(itemId);
+                triggerSceneFlicker(0x888888); // Flicker scene background grey for item pickup
                 itemMesh.visible = false; // Hide the item mesh immediately
                 console.log(`Picked up: ${itemData.name}`);
                 console.log("Inventory:", inventory);
