@@ -64,8 +64,50 @@ function createItemMesh(itemData) {
     const material = new THREE.MeshStandardMaterial({ color: itemData.color });
 
     if (itemData.isDragon) {
-        // Dragons are larger boxes
-        geometry = new THREE.BoxGeometry(1, 1, 1);
+        // Dragons are composite shapes
+        const dragonGroup = new THREE.Group();
+
+        // Define parts dimensions
+        const bellyWidth = 0.6, bellyHeight = 0.8, bellyDepth = 0.6;
+        const neckWidth = 0.3, neckHeight = 0.6, neckDepth = 0.3;
+        const mouthWidth = 0.2, mouthHeight = 0.1, mouthDepth = 0.4; // Depth makes it point forward
+
+        // Create geometries
+        const bellyGeometry = new THREE.BoxGeometry(bellyWidth, bellyHeight, bellyDepth);
+        const neckGeometry = new THREE.BoxGeometry(neckWidth, neckHeight, neckDepth);
+        const mouthGeometry = new THREE.BoxGeometry(mouthWidth, mouthHeight, mouthDepth);
+
+        // Create material (use item's color)
+        const dragonMaterial = material; // Reuse the material created earlier
+
+        // Create meshes
+        const bellyMesh = new THREE.Mesh(bellyGeometry, dragonMaterial);
+        const neckMesh = new THREE.Mesh(neckGeometry, dragonMaterial);
+        const mouthMesh = new THREE.Mesh(mouthGeometry, dragonMaterial);
+
+        // Position parts relative to the group's origin
+        bellyMesh.position.y = bellyHeight / 2; // Center belly vertically at base
+        neckMesh.position.y = bellyHeight + neckHeight / 2; // Place neck on top of belly
+        // Position mouth centered vertically with the neck
+        mouthMesh.position.y = neckMesh.position.y;
+        mouthMesh.position.z = neckDepth / 2 + mouthDepth / 2; // Place mouth in front of the neck (+Z)
+
+        // Add parts to the group
+        dragonGroup.add(bellyMesh);
+        dragonGroup.add(neckMesh);
+        dragonGroup.add(mouthMesh);
+
+        // Assign the group to the mesh variable (instead of a single geometry)
+        // Note: We skip assigning to 'geometry' and handle the mesh creation below differently
+        const mesh = dragonGroup; // Use the group directly
+        mesh.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
+        mesh.userData.itemId = itemData.id;
+        mesh.userData.isDragon = itemData.isDragon || false;
+        mesh.visible = false;
+        scene.add(mesh);
+        itemMeshes.set(itemData.id, mesh);
+        return; // Skip the default mesh creation at the end for dragons
+
     } else if (itemData.id === 'sword') {
         // Sword is a tall thin box
         geometry = new THREE.BoxGeometry(0.1, 1.0, 0.05);
@@ -77,6 +119,7 @@ function createItemMesh(itemData) {
         geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
     }
 
+    // Default mesh creation for non-dragon items
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
     mesh.userData.itemId = itemData.id; // Store item ID for later reference
@@ -237,12 +280,24 @@ function animate() {
            dragon.position.x += direction.x * dragonSpeed;
            dragon.position.z += direction.z * dragonSpeed;
 
-           // Clamp dragon position within room boundaries
-           dragon.position.x = Math.max(-halfRoomSize + dragonBoundaryOffset, Math.min(halfRoomSize - dragonBoundaryOffset, dragon.position.x));
-           dragon.position.z = Math.max(-halfRoomSize + dragonBoundaryOffset, Math.min(halfRoomSize - dragonBoundaryOffset, dragon.position.z));
+           // Rotate dragon to face the direction of movement (player)
+           // Calculate angle in the XZ plane
+           const angle = Math.atan2(direction.x, direction.z);
+           // Apply rotation around the Y axis
+           dragon.rotation.y = angle; // This makes the dragon's local Z axis point towards the player
 
-           // Ensure dragon stays on the ground (adjust y if needed, though it shouldn't change much)
-           dragon.position.y = 0.5; // Assuming dragon height is 1, center is 0.5
+           // Clamp dragon position within room boundaries
+           // Use bellyWidth/Depth for boundary offset calculation
+           const dragonBoundaryOffsetWidth = 0.6 / 2; // Half belly width
+           const dragonBoundaryOffsetDepth = 0.6 / 2; // Half belly depth
+           dragon.position.x = Math.max(-halfRoomSize + dragonBoundaryOffsetWidth, Math.min(halfRoomSize - dragonBoundaryOffsetWidth, dragon.position.x));
+           dragon.position.z = Math.max(-halfRoomSize + dragonBoundaryOffsetDepth, Math.min(halfRoomSize - dragonBoundaryOffsetDepth, dragon.position.z));
+
+           // Ensure dragon stays on the ground (base of the belly)
+           // The group's origin is at the base, so Y=0 is ground level.
+           // We might want it slightly above if bellyHeight/2 was used in createItemMesh positioning.
+           // Let's adjust based on belly height (0.8). Center is 0.4.
+           dragon.position.y = 0.4; // Set Y position to the center of the belly height
        }
    });
 
