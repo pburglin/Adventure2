@@ -331,9 +331,11 @@ function throwSword(direction) {
         // Point tip left or right
         swordProjectile.mesh.rotation.z = direction.x > 0 ? -Math.PI / 2 : Math.PI / 2; // Rotate around Z for horizontal alignment
     } else { // Moving primarily vertically (Z-axis)
-        // Point tip up or down (already default vertical, no rotation needed if Z < 0)
+        // Point tip up (negative Z) or down (positive Z)
         if (direction.z > 0) { // Moving downwards (positive Z)
-             // swordProjectile.mesh.rotation.x = Math.PI; // Rotate around X if needed? No, default is fine.
+             swordProjectile.mesh.rotation.x = Math.PI / 2; // Rotate +90 deg around X
+        } else { // Moving upwards (negative Z)
+             swordProjectile.mesh.rotation.x = -Math.PI / 2; // Rotate -90 deg around X
         }
     }
      console.log(`Sword thrown! State: ${swordState}, Direction: (${direction.x.toFixed(2)}, ${direction.z.toFixed(2)}), Rotation: (${swordProjectile.mesh.rotation.x.toFixed(2)}, ${swordProjectile.mesh.rotation.y.toFixed(2)}, ${swordProjectile.mesh.rotation.z.toFixed(2)})`);
