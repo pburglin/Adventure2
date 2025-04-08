@@ -616,7 +616,7 @@ function animate() {
 
     // Collision detection for items (pickup) and dragons (player death)
     const pickupDistance = 0.5;
-    const dragonCollisionDistance = 0.7;
+    const dragonCollisionDistance = 0.57; // Adjusted for slimmer dragon shape (belly is 0.6 wide/deep)
 
     itemMeshes.forEach((itemMesh, itemId) => {
         if (!itemMesh.visible) return; // Skip invisible items/dragons
