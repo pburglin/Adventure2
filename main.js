@@ -6,7 +6,19 @@ import { worldData, getRoomById } from './world.js'; // Import world data
 let currentRoomId = worldData.startRoomId;
 let currentRoom = getRoomById(currentRoomId);
 const inventory = []; // Player's inventory
+const defeatedDragons = new Set(); // Keep track of defeated dragons
 
+// Sword state management
+let swordState = 'respawned'; // 'inventory', 'thrown', 'stuck', 'respawned'
+let swordProjectile = {
+    active: false,
+    mesh: null, // Reference to the sword's THREE.Mesh
+    velocity: new THREE.Vector3(),
+    direction: new THREE.Vector3(), // Store the initial throw direction
+    originRoomId: null // Room ID where the sword was thrown
+};
+const SWORD_SPEED = 0.15; // Faster than player/dragon
+let swordOriginalSpawn = null; // To store { roomId, position }
 // Scene setup
 const scene = new THREE.Scene();
 const originalBackgroundColor = 0x222222; // Store original color
@@ -103,19 +115,22 @@ function createItemMesh(itemData) {
         mesh.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
         mesh.userData.itemId = itemData.id;
         mesh.userData.isDragon = itemData.isDragon || false;
-        mesh.visible = false;
+        mesh.visible = false; // Initially hidden
         scene.add(mesh);
         itemMeshes.set(itemData.id, mesh);
-        return; // Skip the default mesh creation at the end for dragons
+        return; // Skip default mesh creation
 
     } else if (itemData.id === 'sword') {
         // Sword is a tall thin box
-        geometry = new THREE.BoxGeometry(0.1, 1.0, 0.05);
+        geometry = new THREE.BoxGeometry(0.1, 1.0, 0.05); // Tall thin box (default vertical)
+        // Store original spawn details for the sword
+        swordOriginalSpawn = {
+            roomId: itemData.initialRoomId,
+            position: { ...itemData.position } // Clone position
+        };
     } else if (itemData.id === 'gold_key') {
-        // Key is a cylinder
         geometry = new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8);
     } else {
-        // Default to a small box for other items (like Chalice)
         geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
     }
 
@@ -125,6 +140,14 @@ function createItemMesh(itemData) {
     mesh.userData.itemId = itemData.id; // Store item ID for later reference
     mesh.userData.isDragon = itemData.isDragon || false; // Store dragon flag
     mesh.visible = false; // Initially hidden
+
+    // If this is the sword, store its mesh reference for throwing
+    if (itemData.id === 'sword') {
+        swordProjectile.mesh = mesh;
+        // Ensure sword starts vertically oriented if needed (though BoxGeometry default might be fine)
+        // mesh.rotation.set(0, 0, 0); // Default orientation
+    }
+
     scene.add(mesh);
     itemMeshes.set(itemData.id, mesh);
 }
@@ -134,22 +157,52 @@ worldData.items.forEach(createItemMesh);
 
 // Function to update item visibility based on the current room
 function updateItemVisibility() {
-    const itemsInCurrentRoom = worldData.items.filter(item => item.initialRoomId === currentRoomId);
-    const itemIdsInCurrentRoom = new Set(itemsInCurrentRoom.map(item => item.id));
-    console.log(`[Visibility Check] Room: ${currentRoomId}. Items supposed to be here:`, Array.from(itemIdsInCurrentRoom)); // DEBUG
+    const itemsInCurrentRoomData = worldData.items.filter(item => item.initialRoomId === currentRoomId);
+    const itemIdsInCurrentRoom = new Set(itemsInCurrentRoomData.map(item => item.id));
+    console.log(`[Visibility Check] Room: ${currentRoomId}. Items supposed to be here:`, Array.from(itemIdsInCurrentRoom));
 
     itemMeshes.forEach((mesh, itemId) => {
         let shouldBeVisible = false;
-        // Check if item is in inventory first
-        if (inventory.includes(itemId)) {
-            mesh.visible = false;
+        const itemData = worldData.items.find(item => item.id === itemId); // Get item data
+
+        if (defeatedDragons.has(itemId)) {
+            shouldBeVisible = false; // Dragon is defeated, hide it
+        } else if (itemId === 'sword') {
+            // Sword visibility logic:
+            // Visible if 'stuck' OR if 'respawned' and player is in its original room AND player doesn't have it.
+            // Invisible if 'inventory' or 'thrown'.
+            if (swordState === 'stuck') {
+                shouldBeVisible = true; // Show where it landed
+            } else if (swordState === 'respawned') {
+                // Check if player is in the sword's original room and doesn't have it
+                shouldBeVisible = (currentRoomId === swordOriginalSpawn.roomId && !inventory.includes('sword'));
+                if (shouldBeVisible) {
+                    // Ensure it's at its respawn position
+                    mesh.position.set(swordOriginalSpawn.position.x, swordOriginalSpawn.position.y, swordOriginalSpawn.position.z);
+                    mesh.rotation.set(0, 0, 0); // Reset orientation to default vertical
+                }
+            } else { // 'inventory' or 'thrown'
+                shouldBeVisible = false;
+            }
+        } else if (inventory.includes(itemId)) {
             shouldBeVisible = false; // Item is in inventory, hide it
         } else {
-            // Otherwise, show it only if it belongs in the current room
+            // Default item visibility: show if it belongs in the current room
             shouldBeVisible = itemIdsInCurrentRoom.has(itemId);
         }
+
         mesh.visible = shouldBeVisible;
-        console.log(`[Visibility Check] Item: ${itemId}, In Inventory: ${inventory.includes(itemId)}, Belongs in Room: ${itemIdsInCurrentRoom.has(itemId)}, Final Visibility: ${shouldBeVisible}`); // DEBUG
+        // Only log for non-sword items for clarity during sword testing
+        if (itemId !== 'sword') {
+             console.log(`[Visibility Check] Item: ${itemId}, In Inventory: ${inventory.includes(itemId)}, Belongs in Room: ${itemIdsInCurrentRoom.has(itemId)}, Defeated: ${defeatedDragons.has(itemId)}, Final Visibility: ${shouldBeVisible}`);
+        } else {
+             console.log(`[Visibility Check] Sword State: ${swordState}, In Original Room: ${currentRoomId === swordOriginalSpawn.roomId}, Has Sword: ${inventory.includes('sword')}, Final Visibility: ${shouldBeVisible}`);
+        }
+
+        // Ensure dragons are positioned correctly if visible
+        if (mesh.userData.isDragon && shouldBeVisible) {
+             mesh.position.y = 0.4; // Reset Y position just in case
+        }
     });
 }
 
@@ -215,16 +268,80 @@ createDoorVisuals(currentRoom);
 
 // Player Movement Setup
 const keyboardState = {};
-const playerSpeed = 0.05; // Units per frame
-const dragonSpeed = 0.02; // Slower than the player
+const playerSpeed = 0.05;
+const dragonSpeed = 0.02;
+let lastMoveDirection = new THREE.Vector3(0, 0, 0); // Track last movement direction for throwing
 
 window.addEventListener('keydown', (event) => {
     keyboardState[event.code] = true;
+
+    // --- Sword Throw Logic ---
+    if (event.code === 'Space' && inventory.includes('sword') && swordState === 'inventory') {
+        // Check if any movement key is currently pressed
+        const isMoving = keyboardState['KeyW'] || keyboardState['ArrowUp'] ||
+                         keyboardState['KeyS'] || keyboardState['ArrowDown'] ||
+                         keyboardState['KeyA'] || keyboardState['ArrowLeft'] ||
+                         keyboardState['KeyD'] || keyboardState['ArrowRight'];
+
+        if (isMoving && lastMoveDirection.lengthSq() > 0) { // Check lastMoveDirection to ensure a direction is set
+            console.log("Attempting to throw sword!");
+            throwSword(lastMoveDirection); // Pass the last valid movement direction
+        }
+    }
+    // --- End Sword Throw Logic ---
 });
 
 window.addEventListener('keyup', (event) => {
     keyboardState[event.code] = false;
 });
+
+// Function to handle throwing the sword
+function throwSword(direction) {
+    if (!swordProjectile.mesh) {
+        console.error("Sword mesh not found!");
+        return;
+    }
+
+    // 1. Update State
+    swordState = 'thrown';
+    swordProjectile.active = true;
+    swordProjectile.originRoomId = currentRoomId; // Record the room it was thrown in
+
+    // 2. Remove from Inventory & Update UI
+    const swordIndex = inventory.indexOf('sword');
+    if (swordIndex > -1) {
+        inventory.splice(swordIndex, 1);
+    }
+    updateUI();
+
+    // 3. Set Initial Position & Make Visible
+    // Start slightly in front of the player in the throw direction
+    const offset = direction.clone().multiplyScalar(0.5); // Adjust offset as needed
+    swordProjectile.mesh.position.copy(player.position).add(offset);
+    swordProjectile.mesh.position.y = 0.5; // Set fixed height for thrown sword (mid-point of its height)
+    swordProjectile.mesh.visible = true;
+
+    // 4. Set Velocity
+    swordProjectile.velocity.copy(direction).normalize().multiplyScalar(SWORD_SPEED);
+    swordProjectile.direction.copy(direction).normalize(); // Store normalized direction
+
+    // 5. Orient Sword Mesh based on direction
+    swordProjectile.mesh.rotation.set(0, 0, 0); // Reset rotation first
+    if (Math.abs(direction.x) > Math.abs(direction.z)) { // Moving primarily horizontally (X-axis)
+        // Point tip left or right
+        swordProjectile.mesh.rotation.z = direction.x > 0 ? -Math.PI / 2 : Math.PI / 2; // Rotate around Z for horizontal alignment
+    } else { // Moving primarily vertically (Z-axis)
+        // Point tip up or down (already default vertical, no rotation needed if Z < 0)
+        if (direction.z > 0) { // Moving downwards (positive Z)
+             // swordProjectile.mesh.rotation.x = Math.PI; // Rotate around X if needed? No, default is fine.
+        }
+    }
+     console.log(`Sword thrown! State: ${swordState}, Direction: (${direction.x.toFixed(2)}, ${direction.z.toFixed(2)}), Rotation: (${swordProjectile.mesh.rotation.x.toFixed(2)}, ${swordProjectile.mesh.rotation.y.toFixed(2)}, ${swordProjectile.mesh.rotation.z.toFixed(2)})`);
+
+
+    // Hide from standard visibility logic while thrown
+    // updateItemVisibility(); // Call this to hide the 'inventory' version if needed? No, handled by state check.
+}
 
 // Handle window resize
 window.addEventListener('resize', () => {
@@ -251,63 +368,160 @@ function triggerSceneFlicker(flickerColorHex = 0x888888, duration = 200) {
 function animate() {
     requestAnimationFrame(animate);
 
-    // Player movement logic
+    // --- Calculate Movement Direction ---
+    let moveDirection = new THREE.Vector3(0, 0, 0);
     if (keyboardState['KeyW'] || keyboardState['ArrowUp']) {
-        player.position.z -= playerSpeed;
+        moveDirection.z = -1;
     }
     if (keyboardState['KeyS'] || keyboardState['ArrowDown']) {
-        player.position.z += playerSpeed;
+        moveDirection.z = 1;
     }
     if (keyboardState['KeyA'] || keyboardState['ArrowLeft']) {
-        player.position.x -= playerSpeed;
+        moveDirection.x = -1;
     }
     if (keyboardState['KeyD'] || keyboardState['ArrowRight']) {
-        player.position.x += playerSpeed;
+        moveDirection.x = 1;
     }
 
-   // Dragon movement logic
-   const roomSize = 10; // Must match groundGeometry size
-   const halfRoomSize = roomSize / 2;
-   const dragonBoundaryOffset = 0.5; // Keep dragon away from edge slightly (half its size)
+    // Normalize diagonal movement and update player position
+    if (moveDirection.lengthSq() > 0) { // Only normalize and move if there's input
+        moveDirection.normalize();
+        player.position.x += moveDirection.x * playerSpeed;
+        player.position.z += moveDirection.z * playerSpeed;
+        lastMoveDirection.copy(moveDirection); // Store the latest valid movement direction
+    }
+    // --- End Player Movement ---
 
-   itemMeshes.forEach((itemMesh, itemId) => {
-       if (itemMesh.visible && itemMesh.userData.isDragon) {
-           const dragon = itemMesh;
-           const direction = new THREE.Vector3();
-           direction.subVectors(player.position, dragon.position).normalize();
 
-           // Move dragon towards player
-           dragon.position.x += direction.x * dragonSpeed;
-           dragon.position.z += direction.z * dragonSpeed;
+    // --- Sword Projectile Logic ---
+    if (swordState === 'thrown' && swordProjectile.active) {
+        // Update position
+        swordProjectile.mesh.position.add(swordProjectile.velocity);
 
-           // Rotate dragon to face the direction of movement (player)
-           // Calculate angle in the XZ plane
-           const angle = Math.atan2(direction.x, direction.z);
-           // Apply rotation around the Y axis
-           dragon.rotation.y = angle; // This makes the dragon's local Z axis point towards the player
+        // Check for collisions ONLY within the room it was thrown from
+        if (currentRoomId === swordProjectile.originRoomId) {
+            // A. Check Dragon Collision
+            let hitDragon = false;
+            itemMeshes.forEach((dragonMesh, dragonId) => {
+                if (dragonMesh.visible && dragonMesh.userData.isDragon && !defeatedDragons.has(dragonId)) {
+                    const distance = swordProjectile.mesh.position.distanceTo(dragonMesh.position);
+                    // Use a suitable collision distance for sword vs dragon
+                    const swordDragonCollisionDistance = 0.8; // Adjust as needed (dragon center to sword center)
+                    if (distance < swordDragonCollisionDistance) {
+                        console.log(`Sword hit ${dragonId}!`);
+                        triggerSceneFlicker(0xff0000, 300); // Red flicker for kill
 
-           // Clamp dragon position within room boundaries
-           // Use bellyWidth/Depth for boundary offset calculation
-           const dragonBoundaryOffsetWidth = 0.6 / 2; // Half belly width
-           const dragonBoundaryOffsetDepth = 0.6 / 2; // Half belly depth
-           dragon.position.x = Math.max(-halfRoomSize + dragonBoundaryOffsetWidth, Math.min(halfRoomSize - dragonBoundaryOffsetWidth, dragon.position.x));
-           dragon.position.z = Math.max(-halfRoomSize + dragonBoundaryOffsetDepth, Math.min(halfRoomSize - dragonBoundaryOffsetDepth, dragon.position.z));
+                        // Defeat Dragon
+                        defeatedDragons.add(dragonId);
+                        dragonMesh.visible = false; // Hide the dragon mesh
 
-           // Ensure dragon stays on the ground (base of the belly)
-           // The group's origin is at the base, so Y=0 is ground level.
-           // We might want it slightly above if bellyHeight/2 was used in createItemMesh positioning.
-           // Let's adjust based on belly height (0.8). Center is 0.4.
-           dragon.position.y = 0.4; // Set Y position to the center of the belly height
-       }
-   });
+                        // Stop Sword
+                        swordState = 'stuck';
+                        swordProjectile.active = false;
+                        swordProjectile.velocity.set(0, 0, 0);
+                        // Keep sword mesh visible at the point of impact
+                        hitDragon = true;
+                        updateItemVisibility(); // Update visibility states
+                        return; // Stop checking other dragons
+                    }
+                }
+            });
 
-   // --- End of Dragon Movement Logic ---
+            // B. Check Room Boundary Collision (only if no dragon was hit)
+            if (!hitDragon) {
+                const roomSize = 10;
+                const halfRoomSize = roomSize / 2;
+                const swordPos = swordProjectile.mesh.position;
+                if (swordPos.x < -halfRoomSize || swordPos.x > halfRoomSize || swordPos.z < -halfRoomSize || swordPos.z > halfRoomSize) {
+                    console.log("Sword missed and went out of bounds.");
+                    triggerSceneFlicker(0x888888, 150); // Grey flicker for miss
 
-    // Room transition logic
-    // const roomSize = 10; // Moved up
-    // const halfRoomSize = roomSize / 2; // Moved up
+                    // Reset Sword
+                    swordState = 'respawned'; // Mark for respawn
+                    swordProjectile.active = false;
+                    swordProjectile.mesh.visible = false; // Hide projectile mesh
+                    swordProjectile.velocity.set(0, 0, 0);
+
+                    // Reset the item data in worldData (this is a bit hacky, ideally state is managed better)
+                    const swordData = worldData.items.find(item => item.id === 'sword');
+                    if (swordData) {
+                        swordData.initialRoomId = swordOriginalSpawn.roomId;
+                        swordData.position.x = swordOriginalSpawn.position.x;
+                        swordData.position.y = swordOriginalSpawn.position.y;
+                        swordData.position.z = swordOriginalSpawn.position.z;
+                         console.log(`Sword data reset to Room ${swordData.initialRoomId} at (${swordData.position.x}, ${swordData.position.y}, ${swordData.position.z})`);
+                    }
+
+                    updateItemVisibility(); // Update visibility (should show sword in spawn room if player is there)
+                }
+            }
+        } else {
+             // Sword is in a different room than it was thrown from - treat as out of bounds immediately
+             console.log("Sword left its origin room while thrown - resetting.");
+             triggerSceneFlicker(0x888888, 150); // Grey flicker for miss
+
+             swordState = 'respawned';
+             swordProjectile.active = false;
+             swordProjectile.mesh.visible = false;
+             swordProjectile.velocity.set(0, 0, 0);
+             const swordData = worldData.items.find(item => item.id === 'sword');
+             if (swordData) {
+                 swordData.initialRoomId = swordOriginalSpawn.roomId;
+                 swordData.position.x = swordOriginalSpawn.position.x;
+                 swordData.position.y = swordOriginalSpawn.position.y;
+                 swordData.position.z = swordOriginalSpawn.position.z;
+             }
+             updateItemVisibility();
+        }
+    }
+    // --- End Sword Projectile Logic ---
+
+
+    // --- Player-Sword Retrieval Logic ---
+    if (swordState === 'stuck' && swordProjectile.mesh && swordProjectile.mesh.visible) {
+        const pickupDistance = 0.6; // How close player needs to be to pick up stuck sword
+        const distance = player.position.distanceTo(swordProjectile.mesh.position);
+        if (distance < pickupDistance) {
+            console.log("Retrieved stuck sword!");
+            triggerSceneFlicker(0xAAAAFF, 150); // Blue flicker for pickup
+
+            swordState = 'inventory'; // Back in inventory
+            inventory.push('sword');
+            swordProjectile.mesh.visible = false; // Hide the mesh
+            updateUI();
+            updateItemVisibility(); // Ensure correct visibility states
+        }
+    }
+    // --- End Player-Sword Retrieval Logic ---
+
+
+    // Dragon movement logic (only move if not defeated)
+    const roomSize = 10;
+    const halfRoomSize = roomSize / 2;
+    itemMeshes.forEach((itemMesh, itemId) => {
+        if (itemMesh.visible && itemMesh.userData.isDragon && !defeatedDragons.has(itemId)) { // Check defeatedDragons
+            const dragon = itemMesh;
+            const direction = new THREE.Vector3();
+            direction.subVectors(player.position, dragon.position).normalize();
+
+            dragon.position.x += direction.x * dragonSpeed;
+            dragon.position.z += direction.z * dragonSpeed;
+
+            const angle = Math.atan2(direction.x, direction.z);
+            dragon.rotation.y = angle;
+
+            const dragonBoundaryOffsetWidth = 0.6 / 2;
+            const dragonBoundaryOffsetDepth = 0.6 / 2;
+            dragon.position.x = Math.max(-halfRoomSize + dragonBoundaryOffsetWidth, Math.min(halfRoomSize - dragonBoundaryOffsetWidth, dragon.position.x));
+            dragon.position.z = Math.max(-halfRoomSize + dragonBoundaryOffsetDepth, Math.min(halfRoomSize - dragonBoundaryOffsetDepth, dragon.position.z));
+            dragon.position.y = 0.4;
+        }
+    });
+
+
+    // Room transition logic (largely unchanged, but ensure updateItemVisibility is called)
     let transitioned = false;
-
+    // ... (boundary checks N, S, E, W - check for locked doors etc.) ...
     // Check North boundary
     if (player.position.z < -halfRoomSize) {
         const connection = currentRoom.connections.north;
@@ -320,147 +534,159 @@ function animate() {
                     canPass = false;
                     console.log("Locked! Requires:", connection.lockedBy);
                 } else {
-                    targetRoomId = connection.roomId; // Use roomId from the object
+                    targetRoomId = connection.roomId;
                 }
             } else {
-                 targetRoomId = connection; // Simple connection (just room ID)
+                 targetRoomId = connection;
             }
 
             if (canPass && targetRoomId !== null) {
                 currentRoomId = targetRoomId;
-                player.position.z = halfRoomSize - 0.1; // Enter from South edge
+                player.position.z = halfRoomSize - 0.1;
                 transitioned = true;
             } else {
-                 player.position.z = -halfRoomSize; // Hit wall or locked door
+                 player.position.z = -halfRoomSize;
             }
         } else {
-            player.position.z = -halfRoomSize; // Hit wall (no connection)
+            player.position.z = -halfRoomSize;
         }
     }
     // Check South boundary
     else if (player.position.z > halfRoomSize) {
-        if (currentRoom.connections.south !== null) {
-            currentRoomId = currentRoom.connections.south;
-            player.position.z = -halfRoomSize + 0.1; // Enter from North edge
+        const connection = currentRoom.connections.south; // Need to handle potential locked doors here too if applicable
+        if (connection !== null) {
+             // Assuming south is never locked for now based on world.js
+            currentRoomId = connection;
+            player.position.z = -halfRoomSize + 0.1;
             transitioned = true;
         } else {
-            player.position.z = halfRoomSize; // Hit wall
+            player.position.z = halfRoomSize;
         }
     }
     // Check West boundary
     else if (player.position.x < -halfRoomSize) {
-        if (currentRoom.connections.west !== null) {
-            currentRoomId = currentRoom.connections.west;
-            player.position.x = halfRoomSize - 0.1; // Enter from East edge
-            transitioned = true;
-        } else {
-            player.position.x = -halfRoomSize; // Hit wall
-        }
+         const connection = currentRoom.connections.west; // Need to handle potential locked doors here too if applicable
+         if (connection !== null) {
+             // Assuming west is never locked for now
+             currentRoomId = connection;
+             player.position.x = halfRoomSize - 0.1;
+             transitioned = true;
+         } else {
+             player.position.x = -halfRoomSize;
+         }
     }
     // Check East boundary
     else if (player.position.x > halfRoomSize) {
-        if (currentRoom.connections.east !== null) {
-            currentRoomId = currentRoom.connections.east;
-            player.position.x = -halfRoomSize + 0.1; // Enter from West edge
-            transitioned = true;
-        } else {
-            player.position.x = halfRoomSize; // Hit wall
-        }
+         const connection = currentRoom.connections.east; // Need to handle potential locked doors here too if applicable
+         if (connection !== null) {
+             // Assuming east is never locked for now
+             currentRoomId = connection;
+             player.position.x = -halfRoomSize + 0.1;
+             transitioned = true;
+         } else {
+             player.position.x = halfRoomSize;
+         }
     }
 
-    // If transitioned, update room state
+
     if (transitioned) {
-        // Clear old doors before creating new ones for the new room
+        // ... (clear doors, update room, ground color) ...
         while (doorGroup.children.length > 0) {
             doorGroup.remove(doorGroup.children[0]);
         }
-
         currentRoom = getRoomById(currentRoomId);
         groundMaterial.color.setHex(currentRoom.color);
-        console.log(`[Transition] Set ground color to: ${currentRoom.color.toString(16)}`); // DEBUG
-        updateItemVisibility(); // Update which items are visible
-        createDoorVisuals(currentRoom); // Create doors for the new room
-        console.log(`[Transition] Entered room: ${currentRoom.name} (ID: ${currentRoomId})`); // Log room change
-        updateUI(); // Update room name and inventory display
+        console.log(`[Transition] Set ground color to: ${currentRoom.color.toString(16)}`);
+        updateItemVisibility(); // CRUCIAL: Update visibility after room change
+        createDoorVisuals(currentRoom);
+        console.log(`[Transition] Entered room: ${currentRoom.name} (ID: ${currentRoomId})`);
+        updateUI();
 
-        // Check for win condition
+        // ... (win condition check) ...
         if (currentRoom.winConditionItem && inventory.includes(currentRoom.winConditionItem)) {
-            console.log("YOU WIN! You brought the Chalice back to the Gold Castle!");
-            // Continuous flicker for win condition
-            const winColors = [0x00ff00, 0xffff00, 0xff00ff, 0x00ffff];
-            let colorIndex = 0;
-            const winFlickerInterval = setInterval(() => {
-                triggerSceneFlicker(winColors[colorIndex], 200);
-                colorIndex = (colorIndex + 1) % winColors.length;
-            }, 200);
-            
-            alert("YOU WIN! You brought the Chalice back to the Gold Castle!");
-            return; // Stop further processing this frame
-        }
+             console.log("YOU WIN! You brought the Chalice back to the Gold Castle!");
+             // ... (win flicker) ...
+             alert("YOU WIN! You brought the Chalice back to the Gold Castle!");
+             // Ideally stop the game loop here or disable input
+             return;
+         }
     }
 
-    // Collision detection for items and dragons
-    const pickupDistance = 0.5; // How close player needs to be to pick up items
-    const dragonCollisionDistance = 0.7; // Dragons are bigger
+    // Collision detection for items (pickup) and dragons (player death)
+    const pickupDistance = 0.5;
+    const dragonCollisionDistance = 0.7;
 
     itemMeshes.forEach((itemMesh, itemId) => {
         if (!itemMesh.visible) return; // Skip invisible items/dragons
 
         const itemData = worldData.items.find(item => item.id === itemId);
-        if (!itemData) return; // Should not happen, but safety check
+        if (!itemData) return;
 
         const distance = player.position.distanceTo(itemMesh.position);
 
-        if (itemMesh.userData.isDragon) {
-            // Dragon collision
+        if (itemMesh.userData.isDragon && !defeatedDragons.has(itemId)) { // Check if dragon and not defeated
+            // Player-Dragon collision (death condition)
             if (distance < dragonCollisionDistance) {
-                if (inventory.includes('sword')) {
-                    // Kill dragon
-                    triggerSceneFlicker(0xff0000, 300); // Flicker scene background red when killing dragon
-                    itemMesh.visible = false;
-                    // We need a way to permanently remove the dragon or mark it as dead
-                    // For now, just making it invisible works per session
-                    console.log(`You killed ${itemData.name}!`);
-                    // Remove dragon from itemMeshes? Or add to a 'deadDragons' list?
-                    // Let's just hide it via updateItemVisibility logic for now.
-                    // To make it permanent, we'd need to modify worldData or track state.
-                } else {
-                    // Player is eaten
-                    triggerSceneFlicker(0xff0000, 300); // Flicker scene background red when player dies
-                    console.log(`You were eaten by ${itemData.name}! GAME OVER`);
-                    alert(`You were eaten by ${itemData.name}! GAME OVER`);
-                    // Reset player position and inventory (simple reset)
-                    player.position.set(0, 0.25, 0);
-                    inventory.length = 0; // Clear inventory
-                    currentRoomId = worldData.startRoomId;
-                    currentRoom = getRoomById(currentRoomId);
-                    groundMaterial.color.setHex(currentRoom.color);
-                    updateItemVisibility(); // Update visibility for start room
-                    // Potentially respawn dragons here if not permanently dead
-                    return; // Stop further processing this frame after reset
+                // Player is eaten (Sword doesn't protect from direct contact)
+                triggerSceneFlicker(0xff0000, 300);
+                console.log(`You were eaten by ${itemData.name}! GAME OVER`);
+                alert(`You were eaten by ${itemData.name}! GAME OVER`);
+                // Reset game state
+                player.position.set(0, 0.25, 0);
+                inventory.length = 0; // Clear inventory
+                defeatedDragons.clear(); // Reset defeated dragons on death
+                // Reset sword state if it was thrown/stuck
+                if (swordState !== 'inventory') {
+                    swordState = 'respawned'; // Mark for respawn
+                    swordProjectile.active = false;
+                    if (swordProjectile.mesh) swordProjectile.mesh.visible = false;
+                    const swordData = worldData.items.find(item => item.id === 'sword');
+                     if (swordData) {
+                         swordData.initialRoomId = swordOriginalSpawn.roomId;
+                         swordData.position.x = swordOriginalSpawn.position.x;
+                         swordData.position.y = swordOriginalSpawn.position.y;
+                         swordData.position.z = swordOriginalSpawn.position.z;
+                     }
                 }
+                currentRoomId = worldData.startRoomId;
+                currentRoom = getRoomById(currentRoomId);
+                groundMaterial.color.setHex(currentRoom.color);
+                updateItemVisibility(); // Update visibility for start room (respawns items/dragons)
+                updateUI();
+                createDoorVisuals(currentRoom);
+                return; // Stop processing this frame
             }
-        } else if (!inventory.includes(itemId)) {
-            // Item pickup collision (only if not already in inventory)
-            if (distance < pickupDistance) {
+        } else if (!itemMesh.userData.isDragon && !inventory.includes(itemId)) {
+            // Item pickup collision (excluding sword pickup here, handled by retrieval logic)
+            if (itemId !== 'sword' && distance < pickupDistance) {
                 inventory.push(itemId);
-                triggerSceneFlicker(0x888888); // Flicker scene background grey for item pickup
-                itemMesh.visible = false; // Hide the item mesh immediately
+                triggerSceneFlicker(0x888888);
+                itemMesh.visible = false;
                 console.log(`Picked up: ${itemData.name}`);
                 console.log("Inventory:", inventory);
-                updateUI(); // Update inventory display
-                // updateItemVisibility will hide it permanently now
+                updateUI();
+                // updateItemVisibility(); // Called during room transition or after pickup implicitly
+            }
+            // Handle picking up the respawned sword
+            else if (itemId === 'sword' && swordState === 'respawned' && distance < pickupDistance) {
+                 console.log("Picked up respawned sword!");
+                 triggerSceneFlicker(0xAAAAFF, 150); // Blue flicker
+
+                 swordState = 'inventory'; // Back in inventory
+                 inventory.push('sword');
+                 itemMesh.visible = false; // Hide the mesh
+                 updateUI();
+                 updateItemVisibility(); // Ensure correct visibility states
             }
         }
     });
 
 
-    // Keep camera following the player (simple top-down-ish view)
-    // camera.position.x = player.position.x;
-    // camera.position.z = player.position.z + 5; // Offset behind the player
-    // camera.lookAt(player.position); // Make camera look at the player
-
     renderer.render(scene, camera);
 }
 
-animate();
+// Initial setup calls
+updateItemVisibility();
+updateUI();
+createDoorVisuals(currentRoom);
+animate(); // Start the loop
