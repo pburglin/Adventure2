@@ -7,6 +7,9 @@ let currentRoomId = worldData.startRoomId;
 let currentRoom = getRoomById(currentRoomId);
 const inventory = []; // Player's inventory
 const defeatedDragons = new Set(); // Keep track of defeated dragons
+let isGameWon = false; // Track win state for flashing effect
+let winFlashCounter = 0; // Counter for flashing timing
+const WIN_FLASH_RATE = 15; // Frames per half-cycle of flash
 
 // Spear state management
 let spearState = 'respawned'; // 'inventory', 'thrown', 'stuck', 'respawned'
@@ -37,6 +40,7 @@ document.body.appendChild(renderer.domElement);
 // UI Element References
 const roomNameElement = document.getElementById('room-name');
 const inventoryElement = document.getElementById('inventory');
+const gameMessageElement = document.getElementById('game-message'); // Reference to the new message element
 
 // Door Visualization Setup
 const doorGroup = new THREE.Group();
@@ -609,12 +613,12 @@ function animate() {
         updateUI();
 
         // ... (win condition check) ...
-        if (currentRoom.winConditionItem && inventory.includes(currentRoom.winConditionItem)) {
+        if (!isGameWon && currentRoom.winConditionItem && inventory.includes(currentRoom.winConditionItem)) { // Check !isGameWon to set it only once
              console.log("YOU WIN! You brought the Chalice back to the Gold Castle!");
-             // ... (win flicker) ...
-             alert("YOU WIN! You brought the Chalice back to the Gold Castle!");
-             // Ideally stop the game loop here or disable input
-             return;
+             isGameWon = true; // Set win state
+             gameMessageElement.textContent = "YOU WIN! You brought the Chalice back to the Gold Castle!"; // Display win message
+             // Player input will effectively stop as movement/actions aren't processed after win flash starts
+             // No alert, no return, let the animation loop continue for flashing
          }
     }
 
@@ -641,6 +645,7 @@ function animate() {
                 player.position.set(0, 0.25, 0);
                 inventory.length = 0; // Clear inventory
                 defeatedDragons.clear(); // Reset defeated dragons on death
+                isGameWon = false; // Reset win state on death
                 // Reset sword state if it was thrown/stuck
                 if (spearState !== 'inventory') {
                     spearState = 'respawned'; // Mark for respawn
@@ -659,6 +664,7 @@ function animate() {
                 groundMaterial.color.setHex(currentRoom.color);
                 updateItemVisibility(); // Update visibility for start room (respawns items/dragons)
                 updateUI();
+                gameMessageElement.textContent = ""; // Clear message on death/reset
                 createDoorVisuals(currentRoom);
                 return; // Stop processing this frame
             }
@@ -687,6 +693,24 @@ function animate() {
         }
     });
 
+
+    // --- Win Flashing Logic ---
+    if (isGameWon) {
+        winFlashCounter++;
+        // Alternate between gold and original background color
+        if (winFlashCounter % (WIN_FLASH_RATE * 2) < WIN_FLASH_RATE) {
+            scene.background.setHex(0xFFD700); // Gold color
+        } else {
+            scene.background.setHex(originalBackgroundColor);
+        }
+    } else {
+         // Ensure background is the original color if not won (or after reset)
+         // This might be redundant if reset logic already sets it, but safe to keep.
+         if (!scene.background.equals(new THREE.Color(originalBackgroundColor))) {
+              scene.background.setHex(originalBackgroundColor);
+         }
+    }
+    // --- End Win Flashing Logic ---
 
     renderer.render(scene, camera);
 }
