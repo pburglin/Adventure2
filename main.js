@@ -269,7 +269,8 @@ createDoorVisuals(currentRoom);
 // Player Movement Setup
 const keyboardState = {};
 const playerSpeed = 0.05;
-const dragonSpeed = 0.02;
+const dragonSpeed = 0.02; // Default speed for dragons
+const redDragonSpeed = 0.035; // Faster speed for Rhindle
 let lastMoveDirection = new THREE.Vector3(0, 0, 0); // Track last movement direction for throwing
 
 window.addEventListener('keydown', (event) => {
@@ -506,8 +507,11 @@ function animate() {
             const direction = new THREE.Vector3();
             direction.subVectors(player.position, dragon.position).normalize();
 
-            dragon.position.x += direction.x * dragonSpeed;
-            dragon.position.z += direction.z * dragonSpeed;
+            // Determine speed based on dragon ID
+            const currentDragonSpeed = (itemId === 'dragon_rhindle') ? redDragonSpeed : dragonSpeed;
+
+            dragon.position.x += direction.x * currentDragonSpeed;
+            dragon.position.z += direction.z * currentDragonSpeed;
 
             const angle = Math.atan2(direction.x, direction.z);
             dragon.rotation.y = angle;
