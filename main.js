@@ -420,16 +420,18 @@ window.addEventListener('resize', () => {
 
 // Helper function to trigger scene background flicker
 let flickerTimeout = null; // To prevent overlapping flickers
+let flickerTimeoutId = null; // To store the timeout ID
 function triggerSceneFlicker(flickerColorHex = 0x888888, duration = 200) {
-    console.log('flicker');
-    if (flickerTimeout) {
-        clearTimeout(flickerTimeout); // Clear any existing flicker timeout
-        scene.background.setHex(originalBackgroundColor); // Ensure it resets if interrupted
+
+    if (flickerTimeoutId) {
+        clearTimeout(flickerTimeoutId); // Clear any existing flicker timeout
+        // scene.background.setHex(originalBackgroundColor); // Reset is handled in timeout
     }
-    scene.background.setHex(flickerColorHex); // Set to flicker color
-    flickerTimeout = setTimeout(() => {
-        scene.background.setHex(originalBackgroundColor); // Reset to original color
-        flickerTimeout = null;
+    scene.background.setHex(flickerColorHex); // Set to flicker color using scene.background
+    flickerTimeoutId = setTimeout(() => {
+        scene.background.setHex(originalBackgroundColor); // Reset to original color using scene.background
+        flickerTimeoutId = null;
+        // Removed forced render
     }, duration);
 }
 
@@ -916,9 +918,8 @@ function animate() {
             scene.background.setHex(originalBackgroundColor);
         }
     } else {
-         // Ensure background is the original color if not won (or after reset)
-         // This might be redundant if reset logic already sets it, but safe to keep.
-         if (!scene.background.equals(new THREE.Color(originalBackgroundColor))) {
+         // Ensure background is the original color if not won AND no flicker is active
+         if (!flickerTimeoutId && !scene.background.equals(new THREE.Color(originalBackgroundColor))) {
               scene.background.setHex(originalBackgroundColor);
          }
     }

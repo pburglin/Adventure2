@@ -1,7 +1,6 @@
 body {
     margin: 0;
     overflow: hidden; /* Hide scrollbars */
-    background-color: #000; /* Fallback, though scene background is primary */
 }
 
 canvas {
