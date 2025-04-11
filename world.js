@@ -6,10 +6,10 @@ export const worldData = {
     rooms: [
         { id: 0, name: "Gold Castle Entrance", color: 0xAAAAAA, connections: { north: 1, south: null, east: null, west: null }, winConditionItem: 'chalice' }, // Locked by Gold Key
         { id: 1, name: "Main Hall", color: 0xBBBBBB, connections: { north: { lockedBy: 'gold_key', roomId: 2 }, south: 0, east: 3, west: 4 } },
-        { id: 2, name: "Blue Maze 1", color: 0x0000FF, connections: { north: null, south: 1, east: null, west: null } }, // Simplified maze for now
+        { id: 2, name: "Throne Room", color: 0xFFFFE0, connections: { north: null, south: 1, east: null, west: null } }, // Simplified maze for now
         { id: 3, name: "East Wing", color: 0xCCCCCC, connections: { north: null, south: null, east: 5, west: 1 } }, // Connect East Wing to Throne Room
         { id: 4, name: "West Wing", color: 0xDDDDDD, connections: { north: null, south: null, east: 1, west: null } },
-        { id: 5, name: "Throne Room", color: 0xFFFFE0, connections: { north: null, south: null, east: null, west: 3 } }, // New room
+        { id: 5, name: "Blue Maze 1", color: 0x0000FF, connections: { north: null, south: null, east: null, west: 3 } }, // New room
         // Add more rooms later (Black Castle, White Castle, mazes, etc.)
     ],
     items: [
