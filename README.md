@@ -12,11 +12,11 @@ You can try it online here: [https://adventure2b.netlify.app](https://adventure2
 
 *   **3D World:** Explore a world rendered in 3D using Three.js.
 *   **Room Navigation:** Move between distinct rooms using keyboard controls. Each room has a unique color.
-*   **Item Collection:** Pick up key items like the Gold Key, Sword, and the Chalice by walking over them.
+*   **Item Collection:** Pick up key items like the Gold Key, Spear, and the Chalice by walking over them.
 *   **Inventory System:** Keep track of collected items via a simple UI display.
 *   **Dragon Encounters:** Face fearsome dragons (represented by colored cubes) that roam certain rooms and pursue the player.
-*   **Combat:** Use the Sword to defeat dragons.
-*   **Game Over Condition:** Getting caught by a dragon without the Sword ends the game.
+*   **Combat:** Use the Spear to defeat dragons.
+*   **Game Over Condition:** Getting caught by a dragon without the Spear ends the game.
 *   **Win Condition:** Successfully bring the Chalice back to the starting room (Gold Castle Entrance).
 *   **Locked Doors:** (Logic exists) Some connections might require specific items (like a key) to pass through.
 *   **Visual Feedback:** The scene background flickers to indicate events like item pickups, dragon kills, player death, and winning the game.
@@ -28,7 +28,7 @@ You can try it online here: [https://adventure2b.netlify.app](https://adventure2
     *   Use **WASD** or the **Arrow Keys** to move the player (yellow cube) around the current room.
 3.  **Objective:**
     *   Explore the castle rooms.
-    *   Find the **Sword** to defend yourself against dragons.
+    *   Find the **Spear** to defend yourself against dragons.
     *   Find the **Gold Key** (if needed for locked doors - currently implemented but not used in `world.js`).
     *   Locate the **Chalice** in the Throne Room.
     *   Avoid or defeat the **Dragons** (Yellow, Green, Red).

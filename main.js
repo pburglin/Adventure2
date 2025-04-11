@@ -8,17 +8,17 @@ let currentRoom = getRoomById(currentRoomId);
 const inventory = []; // Player's inventory
 const defeatedDragons = new Set(); // Keep track of defeated dragons
 
-// Sword state management
-let swordState = 'respawned'; // 'inventory', 'thrown', 'stuck', 'respawned'
-let swordProjectile = {
+// Spear state management
+let spearState = 'respawned'; // 'inventory', 'thrown', 'stuck', 'respawned'
+let spearProjectile = {
     active: false,
-    mesh: null, // Reference to the sword's THREE.Mesh
+    mesh: null, // Reference to the spear's THREE.Mesh
     velocity: new THREE.Vector3(),
     direction: new THREE.Vector3(), // Store the initial throw direction
-    originRoomId: null // Room ID where the sword was thrown
+    originRoomId: null // Room ID where the spear was thrown
 };
-const SWORD_SPEED = 0.15; // Faster than player/dragon
-let swordOriginalSpawn = null; // To store { roomId, position }
+const SPEAR_SPEED = 0.15; // Faster than player/dragon
+let spearOriginalSpawn = null; // To store { roomId, position }
 // Scene setup
 const scene = new THREE.Scene();
 const originalBackgroundColor = 0x222222; // Store original color
@@ -120,11 +120,11 @@ function createItemMesh(itemData) {
         itemMeshes.set(itemData.id, mesh);
         return; // Skip default mesh creation
 
-    } else if (itemData.id === 'sword') {
-        // Sword is a tall thin box
+    } else if (itemData.id === 'spear') {
+        // Spear is a tall thin box (representing the spear shaft)
         geometry = new THREE.BoxGeometry(0.1, 1.0, 0.05); // Tall thin box (default vertical)
-        // Store original spawn details for the sword
-        swordOriginalSpawn = {
+        // Store original spawn details for the spear
+        spearOriginalSpawn = {
             roomId: itemData.initialRoomId,
             position: { ...itemData.position } // Clone position
         };
@@ -141,10 +141,10 @@ function createItemMesh(itemData) {
     mesh.userData.isDragon = itemData.isDragon || false; // Store dragon flag
     mesh.visible = false; // Initially hidden
 
-    // If this is the sword, store its mesh reference for throwing
-    if (itemData.id === 'sword') {
-        swordProjectile.mesh = mesh;
-        // Ensure sword starts vertically oriented if needed (though BoxGeometry default might be fine)
+    // If this is the spear, store its mesh reference for throwing
+    if (itemData.id === 'spear') {
+        spearProjectile.mesh = mesh;
+        // Ensure spear starts vertically oriented if needed (though BoxGeometry default might be fine)
         // mesh.rotation.set(0, 0, 0); // Default orientation
     }
 
@@ -167,18 +167,18 @@ function updateItemVisibility() {
 
         if (defeatedDragons.has(itemId)) {
             shouldBeVisible = false; // Dragon is defeated, hide it
-        } else if (itemId === 'sword') {
-            // Sword visibility logic:
+        } else if (itemId === 'spear') {
+            // Spear visibility logic:
             // Visible if 'stuck' OR if 'respawned' and player is in its original room AND player doesn't have it.
             // Invisible if 'inventory' or 'thrown'.
-            if (swordState === 'stuck') {
+            if (spearState === 'stuck') {
                 shouldBeVisible = true; // Show where it landed
-            } else if (swordState === 'respawned') {
-                // Check if player is in the sword's original room and doesn't have it
-                shouldBeVisible = (currentRoomId === swordOriginalSpawn.roomId && !inventory.includes('sword'));
+            } else if (spearState === 'respawned') {
+                // Check if player is in the spear's original room and doesn't have it
+                shouldBeVisible = (currentRoomId === spearOriginalSpawn.roomId && !inventory.includes('spear'));
                 if (shouldBeVisible) {
                     // Ensure it's at its respawn position
-                    mesh.position.set(swordOriginalSpawn.position.x, swordOriginalSpawn.position.y, swordOriginalSpawn.position.z);
+                    mesh.position.set(spearOriginalSpawn.position.x, spearOriginalSpawn.position.y, spearOriginalSpawn.position.z);
                     mesh.rotation.set(0, 0, 0); // Reset orientation to default vertical
                 }
             } else { // 'inventory' or 'thrown'
@@ -192,11 +192,11 @@ function updateItemVisibility() {
         }
 
         mesh.visible = shouldBeVisible;
-        // Only log for non-sword items for clarity during sword testing
-        if (itemId !== 'sword') {
+        // Only log for non-spear items for clarity during spear testing
+        if (itemId !== 'spear') {
              console.log(`[Visibility Check] Item: ${itemId}, In Inventory: ${inventory.includes(itemId)}, Belongs in Room: ${itemIdsInCurrentRoom.has(itemId)}, Defeated: ${defeatedDragons.has(itemId)}, Final Visibility: ${shouldBeVisible}`);
         } else {
-             console.log(`[Visibility Check] Sword State: ${swordState}, In Original Room: ${currentRoomId === swordOriginalSpawn.roomId}, Has Sword: ${inventory.includes('sword')}, Final Visibility: ${shouldBeVisible}`);
+             console.log(`[Visibility Check] Spear State: ${spearState}, In Original Room: ${currentRoomId === spearOriginalSpawn.roomId}, Has Spear: ${inventory.includes('spear')}, Final Visibility: ${shouldBeVisible}`);
         }
 
         // Ensure dragons are positioned correctly if visible
@@ -275,8 +275,8 @@ let lastMoveDirection = new THREE.Vector3(0, 0, 0); // Track last movement direc
 window.addEventListener('keydown', (event) => {
     keyboardState[event.code] = true;
 
-    // --- Sword Throw Logic ---
-    if (event.code === 'Space' && inventory.includes('sword') && swordState === 'inventory') {
+    // --- Spear Throw Logic ---
+    if (event.code === 'Space' && inventory.includes('spear') && spearState === 'inventory') {
         // Check if any movement key is currently pressed
         const isMoving = keyboardState['KeyW'] || keyboardState['ArrowUp'] ||
                          keyboardState['KeyS'] || keyboardState['ArrowDown'] ||
@@ -284,61 +284,61 @@ window.addEventListener('keydown', (event) => {
                          keyboardState['KeyD'] || keyboardState['ArrowRight'];
 
         if (isMoving && lastMoveDirection.lengthSq() > 0) { // Check lastMoveDirection to ensure a direction is set
-            console.log("Attempting to throw sword!");
-            throwSword(lastMoveDirection); // Pass the last valid movement direction
+            console.log("Attempting to throw spear!");
+            throwSpear(lastMoveDirection); // Pass the last valid movement direction
         }
     }
-    // --- End Sword Throw Logic ---
+    // --- End Spear Throw Logic ---
 });
 
 window.addEventListener('keyup', (event) => {
     keyboardState[event.code] = false;
 });
 
-// Function to handle throwing the sword
-function throwSword(direction) {
-    if (!swordProjectile.mesh) {
-        console.error("Sword mesh not found!");
+// Function to handle throwing the spear
+function throwSpear(direction) {
+    if (!spearProjectile.mesh) {
+        console.error("Spear mesh not found!");
         return;
     }
 
     // 1. Update State
-    swordState = 'thrown';
-    swordProjectile.active = true;
-    swordProjectile.originRoomId = currentRoomId; // Record the room it was thrown in
+    spearState = 'thrown';
+    spearProjectile.active = true;
+    spearProjectile.originRoomId = currentRoomId; // Record the room it was thrown in
 
     // 2. Remove from Inventory & Update UI
-    const swordIndex = inventory.indexOf('sword');
-    if (swordIndex > -1) {
-        inventory.splice(swordIndex, 1);
+    const spearIndex = inventory.indexOf('spear');
+    if (spearIndex > -1) {
+        inventory.splice(spearIndex, 1);
     }
     updateUI();
 
     // 3. Set Initial Position & Make Visible
     // Start slightly in front of the player in the throw direction
     const offset = direction.clone().multiplyScalar(0.5); // Adjust offset as needed
-    swordProjectile.mesh.position.copy(player.position).add(offset);
-    swordProjectile.mesh.position.y = 0.5; // Set fixed height for thrown sword (mid-point of its height)
-    swordProjectile.mesh.visible = true;
+    spearProjectile.mesh.position.copy(player.position).add(offset);
+    spearProjectile.mesh.position.y = 0.5; // Set fixed height for thrown spear (mid-point of its height)
+    spearProjectile.mesh.visible = true;
 
     // 4. Set Velocity
-    swordProjectile.velocity.copy(direction).normalize().multiplyScalar(SWORD_SPEED);
-    swordProjectile.direction.copy(direction).normalize(); // Store normalized direction
+    spearProjectile.velocity.copy(direction).normalize().multiplyScalar(SPEAR_SPEED);
+    spearProjectile.direction.copy(direction).normalize(); // Store normalized direction
 
-    // 5. Orient Sword Mesh based on direction
-    swordProjectile.mesh.rotation.set(0, 0, 0); // Reset rotation first
+    // 5. Orient Spear Mesh based on direction
+    spearProjectile.mesh.rotation.set(0, 0, 0); // Reset rotation first
     if (Math.abs(direction.x) > Math.abs(direction.z)) { // Moving primarily horizontally (X-axis)
         // Point tip left or right
-        swordProjectile.mesh.rotation.z = direction.x > 0 ? -Math.PI / 2 : Math.PI / 2; // Rotate around Z for horizontal alignment
+        spearProjectile.mesh.rotation.z = direction.x > 0 ? -Math.PI / 2 : Math.PI / 2; // Rotate around Z for horizontal alignment
     } else { // Moving primarily vertically (Z-axis)
         // Point tip up (negative Z) or down (positive Z)
         if (direction.z > 0) { // Moving downwards (positive Z)
-             swordProjectile.mesh.rotation.x = Math.PI / 2; // Rotate +90 deg around X
+             spearProjectile.mesh.rotation.x = Math.PI / 2; // Rotate +90 deg around X
         } else { // Moving upwards (negative Z)
-             swordProjectile.mesh.rotation.x = -Math.PI / 2; // Rotate -90 deg around X
+             spearProjectile.mesh.rotation.x = -Math.PI / 2; // Rotate -90 deg around X
         }
     }
-     console.log(`Sword thrown! State: ${swordState}, Direction: (${direction.x.toFixed(2)}, ${direction.z.toFixed(2)}), Rotation: (${swordProjectile.mesh.rotation.x.toFixed(2)}, ${swordProjectile.mesh.rotation.y.toFixed(2)}, ${swordProjectile.mesh.rotation.z.toFixed(2)})`);
+     console.log(`Spear thrown! State: ${spearState}, Direction: (${direction.x.toFixed(2)}, ${direction.z.toFixed(2)}), Rotation: (${spearProjectile.mesh.rotation.x.toFixed(2)}, ${spearProjectile.mesh.rotation.y.toFixed(2)}, ${spearProjectile.mesh.rotation.z.toFixed(2)})`);
 
 
     // Hide from standard visibility logic while thrown
@@ -395,33 +395,33 @@ function animate() {
     // --- End Player Movement ---
 
 
-    // --- Sword Projectile Logic ---
-    if (swordState === 'thrown' && swordProjectile.active) {
+    // --- Spear Projectile Logic ---
+    if (spearState === 'thrown' && spearProjectile.active) {
         // Update position
-        swordProjectile.mesh.position.add(swordProjectile.velocity);
+        spearProjectile.mesh.position.add(spearProjectile.velocity);
 
         // Check for collisions ONLY within the room it was thrown from
-        if (currentRoomId === swordProjectile.originRoomId) {
+        if (currentRoomId === spearProjectile.originRoomId) {
             // A. Check Dragon Collision
             let hitDragon = false;
             itemMeshes.forEach((dragonMesh, dragonId) => {
                 if (dragonMesh.visible && dragonMesh.userData.isDragon && !defeatedDragons.has(dragonId)) {
-                    const distance = swordProjectile.mesh.position.distanceTo(dragonMesh.position);
-                    // Use a suitable collision distance for sword vs dragon
-                    const swordDragonCollisionDistance = 0.8; // Adjust as needed (dragon center to sword center)
-                    if (distance < swordDragonCollisionDistance) {
-                        console.log(`Sword hit ${dragonId}!`);
+                    const distance = spearProjectile.mesh.position.distanceTo(dragonMesh.position);
+                    // Use a suitable collision distance for spear vs dragon
+                    const spearDragonCollisionDistance = 0.8; // Adjust as needed (dragon center to spear center)
+                    if (distance < spearDragonCollisionDistance) {
+                        console.log(`Spear hit ${dragonId}!`);
                         triggerSceneFlicker(0xff0000, 300); // Red flicker for kill
 
                         // Defeat Dragon
                         defeatedDragons.add(dragonId);
                         dragonMesh.visible = false; // Hide the dragon mesh
 
-                        // Stop Sword
-                        swordState = 'stuck';
-                        swordProjectile.active = false;
-                        swordProjectile.velocity.set(0, 0, 0);
-                        // Keep sword mesh visible at the point of impact
+                        // Stop Spear
+                        spearState = 'stuck';
+                        spearProjectile.active = false;
+                        spearProjectile.velocity.set(0, 0, 0);
+                        // Keep spear mesh visible at the point of impact
                         hitDragon = true;
                         updateItemVisibility(); // Update visibility states
                         return; // Stop checking other dragons
@@ -433,68 +433,68 @@ function animate() {
             if (!hitDragon) {
                 const roomSize = 10;
                 const halfRoomSize = roomSize / 2;
-                const swordPos = swordProjectile.mesh.position;
-                if (swordPos.x < -halfRoomSize || swordPos.x > halfRoomSize || swordPos.z < -halfRoomSize || swordPos.z > halfRoomSize) {
-                    console.log("Sword missed and went out of bounds.");
+                const spearPos = spearProjectile.mesh.position;
+                if (spearPos.x < -halfRoomSize || spearPos.x > halfRoomSize || spearPos.z < -halfRoomSize || spearPos.z > halfRoomSize) {
+                    console.log("Spear missed and went out of bounds.");
                     triggerSceneFlicker(0x888888, 150); // Grey flicker for miss
 
-                    // Reset Sword
-                    swordState = 'respawned'; // Mark for respawn
-                    swordProjectile.active = false;
-                    swordProjectile.mesh.visible = false; // Hide projectile mesh
-                    swordProjectile.velocity.set(0, 0, 0);
+                    // Reset Spear
+                    spearState = 'respawned'; // Mark for respawn
+                    spearProjectile.active = false;
+                    spearProjectile.mesh.visible = false; // Hide projectile mesh
+                    spearProjectile.velocity.set(0, 0, 0);
 
                     // Reset the item data in worldData (this is a bit hacky, ideally state is managed better)
-                    const swordData = worldData.items.find(item => item.id === 'sword');
-                    if (swordData) {
-                        swordData.initialRoomId = swordOriginalSpawn.roomId;
-                        swordData.position.x = swordOriginalSpawn.position.x;
-                        swordData.position.y = swordOriginalSpawn.position.y;
-                        swordData.position.z = swordOriginalSpawn.position.z;
-                         console.log(`Sword data reset to Room ${swordData.initialRoomId} at (${swordData.position.x}, ${swordData.position.y}, ${swordData.position.z})`);
+                    const spearData = worldData.items.find(item => item.id === 'spear');
+                    if (spearData) {
+                        spearData.initialRoomId = spearOriginalSpawn.roomId;
+                        spearData.position.x = spearOriginalSpawn.position.x;
+                        spearData.position.y = spearOriginalSpawn.position.y;
+                        spearData.position.z = spearOriginalSpawn.position.z;
+                         console.log(`Spear data reset to Room ${spearData.initialRoomId} at (${spearData.position.x}, ${spearData.position.y}, ${spearData.position.z})`);
                     }
 
-                    updateItemVisibility(); // Update visibility (should show sword in spawn room if player is there)
+                    updateItemVisibility(); // Update visibility (should show spear in spawn room if player is there)
                 }
             }
         } else {
-             // Sword is in a different room than it was thrown from - treat as out of bounds immediately
-             console.log("Sword left its origin room while thrown - resetting.");
+             // Spear is in a different room than it was thrown from - treat as out of bounds immediately
+             console.log("Spear left its origin room while thrown - resetting.");
              triggerSceneFlicker(0x888888, 150); // Grey flicker for miss
 
-             swordState = 'respawned';
-             swordProjectile.active = false;
-             swordProjectile.mesh.visible = false;
-             swordProjectile.velocity.set(0, 0, 0);
-             const swordData = worldData.items.find(item => item.id === 'sword');
-             if (swordData) {
-                 swordData.initialRoomId = swordOriginalSpawn.roomId;
-                 swordData.position.x = swordOriginalSpawn.position.x;
-                 swordData.position.y = swordOriginalSpawn.position.y;
-                 swordData.position.z = swordOriginalSpawn.position.z;
+             spearState = 'respawned';
+             spearProjectile.active = false;
+             spearProjectile.mesh.visible = false;
+             spearProjectile.velocity.set(0, 0, 0);
+             const spearData = worldData.items.find(item => item.id === 'spear');
+             if (spearData) {
+                 spearData.initialRoomId = spearOriginalSpawn.roomId;
+                 spearData.position.x = spearOriginalSpawn.position.x;
+                 spearData.position.y = spearOriginalSpawn.position.y;
+                 spearData.position.z = spearOriginalSpawn.position.z;
              }
              updateItemVisibility();
         }
     }
-    // --- End Sword Projectile Logic ---
+    // --- End Spear Projectile Logic ---
 
 
-    // --- Player-Sword Retrieval Logic ---
-    if (swordState === 'stuck' && swordProjectile.mesh && swordProjectile.mesh.visible) {
-        const pickupDistance = 0.6; // How close player needs to be to pick up stuck sword
-        const distance = player.position.distanceTo(swordProjectile.mesh.position);
+    // --- Player-Spear Retrieval Logic ---
+    if (spearState === 'stuck' && spearProjectile.mesh && spearProjectile.mesh.visible) {
+        const pickupDistance = 0.6; // How close player needs to be to pick up stuck spear
+        const distance = player.position.distanceTo(spearProjectile.mesh.position);
         if (distance < pickupDistance) {
-            console.log("Retrieved stuck sword!");
+            console.log("Retrieved stuck spear!");
             triggerSceneFlicker(0xAAAAFF, 150); // Blue flicker for pickup
 
-            swordState = 'inventory'; // Back in inventory
-            inventory.push('sword');
-            swordProjectile.mesh.visible = false; // Hide the mesh
+            spearState = 'inventory'; // Back in inventory
+            inventory.push('spear');
+            spearProjectile.mesh.visible = false; // Hide the mesh
             updateUI();
             updateItemVisibility(); // Ensure correct visibility states
         }
     }
-    // --- End Player-Sword Retrieval Logic ---
+    // --- End Player-Spear Retrieval Logic ---
 
 
     // Dragon movement logic (only move if not defeated)
@@ -638,16 +638,16 @@ function animate() {
                 inventory.length = 0; // Clear inventory
                 defeatedDragons.clear(); // Reset defeated dragons on death
                 // Reset sword state if it was thrown/stuck
-                if (swordState !== 'inventory') {
-                    swordState = 'respawned'; // Mark for respawn
-                    swordProjectile.active = false;
-                    if (swordProjectile.mesh) swordProjectile.mesh.visible = false;
-                    const swordData = worldData.items.find(item => item.id === 'sword');
-                     if (swordData) {
-                         swordData.initialRoomId = swordOriginalSpawn.roomId;
-                         swordData.position.x = swordOriginalSpawn.position.x;
-                         swordData.position.y = swordOriginalSpawn.position.y;
-                         swordData.position.z = swordOriginalSpawn.position.z;
+                if (spearState !== 'inventory') {
+                    spearState = 'respawned'; // Mark for respawn
+                    spearProjectile.active = false;
+                    if (spearProjectile.mesh) spearProjectile.mesh.visible = false;
+                    const spearData = worldData.items.find(item => item.id === 'spear');
+                     if (spearData) {
+                         spearData.initialRoomId = spearOriginalSpawn.roomId;
+                         spearData.position.x = spearOriginalSpawn.position.x;
+                         spearData.position.y = spearOriginalSpawn.position.y;
+                         spearData.position.z = spearOriginalSpawn.position.z;
                      }
                 }
                 currentRoomId = worldData.startRoomId;
@@ -660,7 +660,7 @@ function animate() {
             }
         } else if (!itemMesh.userData.isDragon && !inventory.includes(itemId)) {
             // Item pickup collision (excluding sword pickup here, handled by retrieval logic)
-            if (itemId !== 'sword' && distance < pickupDistance) {
+            if (itemId !== 'spear' && distance < pickupDistance) {
                 inventory.push(itemId);
                 triggerSceneFlicker(0x888888);
                 itemMesh.visible = false;
@@ -670,12 +670,12 @@ function animate() {
                 // updateItemVisibility(); // Called during room transition or after pickup implicitly
             }
             // Handle picking up the respawned sword
-            else if (itemId === 'sword' && swordState === 'respawned' && distance < pickupDistance) {
-                 console.log("Picked up respawned sword!");
+            else if (itemId === 'spear' && spearState === 'respawned' && distance < pickupDistance) {
+                 console.log("Picked up respawned spear!");
                  triggerSceneFlicker(0xAAAAFF, 150); // Blue flicker
 
-                 swordState = 'inventory'; // Back in inventory
-                 inventory.push('sword');
+                 spearState = 'inventory'; // Back in inventory
+                 inventory.push('spear');
                  itemMesh.visible = false; // Hide the mesh
                  updateUI();
                  updateItemVisibility(); // Ensure correct visibility states
