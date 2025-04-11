@@ -21,7 +21,28 @@ let spearProjectile = {
     originRoomId: null // Room ID where the spear was thrown
 };
 const SPEAR_SPEED = 0.15; // Faster than player/dragon
-let spearOriginalSpawn = null; // To store { roomId, position }
+let spearOriginalSpawn = { roomId: 4, position: { x: -2, y: 0.25, z: 2 } }; // To store { roomId, position }
+// Bird NPC State
+let bird = {
+    mesh: null,
+    active: false, // Is the bird sequence currently running?
+    state: 'inactive', // 'inactive', 'entering', 'crossing', 'exiting'
+    targetObject: null, // { type: 'item'/'player', id: 'item_id'/null } The object being carried
+    targetObjectId: null, // ID of the item/dragon being carried (null if player)
+    targetObjectType: null, // 'item', 'dragon', 'player'
+    startPos: new THREE.Vector3(),
+    endPos: new THREE.Vector3(),
+    velocity: new THREE.Vector3(),
+    wingAngle: 0,
+    wingDirection: 1, // 1 for up, -1 for down
+    action: null // 'bring' or 'take'
+};
+const BIRD_SPEED = 0.08;
+const BIRD_WING_SPEED = 0.05;
+const BIRD_WING_MAX_ANGLE = Math.PI / 4; // 45 degrees flap
+const BIRD_Y_POSITION = 0.75; // How high the bird flies
+const BIRD_SPAWN_CHANCE = 0.1; // 10% chance
+
 // Scene setup
 const scene = new THREE.Scene();
 const originalBackgroundColor = 0x222222; // Store original color
@@ -127,11 +148,6 @@ function createItemMesh(itemData) {
     } else if (itemData.id === 'spear') {
         // Spear is a tall thin box (representing the spear shaft)
         geometry = new THREE.BoxGeometry(0.1, 1.0, 0.05); // Tall thin box (default vertical)
-        // Store original spawn details for the spear
-        spearOriginalSpawn = {
-            roomId: itemData.initialRoomId,
-            position: { ...itemData.position } // Clone position
-        };
     } else if (itemData.id === 'gold_key') {
         geometry = new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8);
     } else {
@@ -159,11 +175,49 @@ function createItemMesh(itemData) {
 // Create meshes for all items defined in worldData
 worldData.items.forEach(createItemMesh);
 
+// --- Bird Mesh Creation ---
+function createBirdMesh() {
+    const birdGroup = new THREE.Group();
+
+    // Body
+    const bodyGeometry = new THREE.BoxGeometry(0.4, 0.4, 0.8); // Longer body
+    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x87CEEB }); // Sky blue
+    const bodyMesh = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    birdGroup.add(bodyMesh);
+
+    // Wings (relative to the body)
+    const wingGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.3); // Wider, thinner wings
+    const wingMaterial = new THREE.MeshStandardMaterial({ color: 0xADD8E6 }); // Light blue
+
+    const leftWing = new THREE.Mesh(wingGeometry, wingMaterial);
+    leftWing.position.set(-0.5, 0, 0); // Position left of the body center
+    leftWing.geometry.translate(0.4, 0, 0); // Pivot from the edge connected to the body
+    birdGroup.add(leftWing);
+
+    const rightWing = new THREE.Mesh(wingGeometry, wingMaterial);
+    rightWing.position.set(0.5, 0, 0); // Position right of the body center
+    rightWing.geometry.translate(-0.4, 0, 0); // Pivot from the edge connected to the body
+    birdGroup.add(rightWing);
+
+    birdGroup.position.y = BIRD_Y_POSITION; // Set initial height
+    birdGroup.visible = false; // Start hidden
+    scene.add(birdGroup);
+
+    // Store references for animation
+    bird.mesh = birdGroup;
+    bird.mesh.userData.leftWing = leftWing; // Store wing references for easy access
+    bird.mesh.userData.rightWing = rightWing;
+}
+
+createBirdMesh(); // Create the bird mesh on startup
+// --- End Bird Mesh Creation ---
+
 // Function to update item visibility based on the current room
 function updateItemVisibility() {
-    const itemsInCurrentRoomData = worldData.items.filter(item => item.initialRoomId === currentRoomId);
+    // Get all items currently located in this room according to worldData
+    const itemsInCurrentRoomData = worldData.items.filter(item => item.currentRoomId === currentRoomId);
     const itemIdsInCurrentRoom = new Set(itemsInCurrentRoomData.map(item => item.id));
-    console.log(`[Visibility Check] Room: ${currentRoomId}. Items supposed to be here:`, Array.from(itemIdsInCurrentRoom));
+    //console.log(`[Visibility Check] Room: ${currentRoomId}. Items currently located here:`, Array.from(itemIdsInCurrentRoom));
 
     itemMeshes.forEach((mesh, itemId) => {
         let shouldBeVisible = false;
@@ -185,22 +239,30 @@ function updateItemVisibility() {
                     mesh.position.set(spearOriginalSpawn.position.x, spearOriginalSpawn.position.y, spearOriginalSpawn.position.z);
                     mesh.rotation.set(0, 0, 0); // Reset orientation to default vertical
                 }
-            } else { // 'inventory' or 'thrown'
+            } else if (spearState === 'thrown') {
+                shouldBeVisible = true;
+            } else { // 'inventory'
                 shouldBeVisible = false;
             }
         } else if (inventory.includes(itemId)) {
             shouldBeVisible = false; // Item is in inventory, hide it
         } else {
             // Default item visibility: show if it belongs in the current room
-            shouldBeVisible = itemIdsInCurrentRoom.has(itemId);
+            // Default item visibility: show if its currentRoomId matches the player's current room
+            const itemData = worldData.items.find(item => item.id === itemId);
+            shouldBeVisible = itemData ? itemData.currentRoomId === currentRoomId : false;
         }
 
         mesh.visible = shouldBeVisible;
         // Only log for non-spear items for clarity during spear testing
         if (itemId !== 'spear') {
-             console.log(`[Visibility Check] Item: ${itemId}, In Inventory: ${inventory.includes(itemId)}, Belongs in Room: ${itemIdsInCurrentRoom.has(itemId)}, Defeated: ${defeatedDragons.has(itemId)}, Final Visibility: ${shouldBeVisible}`);
+             const itemDataForLog = worldData.items.find(item => item.id === itemId);
+             const itemCurrentRoomId = itemDataForLog ? itemDataForLog.currentRoomId : 'N/A';
+             //console.log(`[Visibility Check] Item: ${itemId}, In Inventory: ${inventory.includes(itemId)}, Current Room ID: ${itemCurrentRoomId}, Player Room ID: ${currentRoomId}, Defeated: ${defeatedDragons.has(itemId)}, Final Visibility: ${shouldBeVisible}`);
         } else {
-             console.log(`[Visibility Check] Spear State: ${spearState}, In Original Room: ${currentRoomId === spearOriginalSpawn.roomId}, Has Spear: ${inventory.includes('spear')}, Final Visibility: ${shouldBeVisible}`);
+             //console.log(`[Visibility Check] Spear State: ${spearState}, In Original Room: ${currentRoomId === spearOriginalSpawn.roomId}, Has Spear: ${inventory.includes('spear')}, Final Visibility: ${shouldBeVisible}`);
+             //console.log('currentRoomId: ', currentRoomId);
+             //console.log('spearOriginalSpawn.roomId: ', spearOriginalSpawn.roomId);
         }
 
         // Ensure dragons are positioned correctly if visible
@@ -345,7 +407,6 @@ function throwSpear(direction) {
     }
      console.log(`Spear thrown! State: ${spearState}, Direction: (${direction.x.toFixed(2)}, ${direction.z.toFixed(2)}), Rotation: (${spearProjectile.mesh.rotation.x.toFixed(2)}, ${spearProjectile.mesh.rotation.y.toFixed(2)}, ${spearProjectile.mesh.rotation.z.toFixed(2)})`);
 
-
     // Hide from standard visibility logic while thrown
     // updateItemVisibility(); // Call this to hide the 'inventory' version if needed? No, handled by state check.
 }
@@ -360,6 +421,7 @@ window.addEventListener('resize', () => {
 // Helper function to trigger scene background flicker
 let flickerTimeout = null; // To prevent overlapping flickers
 function triggerSceneFlicker(flickerColorHex = 0x888888, duration = 200) {
+    console.log('flicker');
     if (flickerTimeout) {
         clearTimeout(flickerTimeout); // Clear any existing flicker timeout
         scene.background.setHex(originalBackgroundColor); // Ensure it resets if interrupted
@@ -397,6 +459,7 @@ function animate() {
         player.position.z += moveDirection.z * playerSpeed;
         lastMoveDirection.copy(moveDirection); // Store the latest valid movement direction
     }
+    //console.log('player.position:', player.position);
     // --- End Player Movement ---
 
 
@@ -432,7 +495,7 @@ function animate() {
                         return; // Stop checking other dragons
                     }
                 }
-            });
+            }); // End of itemMeshes.forEach for spear-dragon collision
 
             // B. Check Room Boundary Collision (only if no dragon was hit)
             if (!hitDragon) {
@@ -449,17 +512,8 @@ function animate() {
                     spearProjectile.mesh.visible = false; // Hide projectile mesh
                     spearProjectile.velocity.set(0, 0, 0);
 
-                    // Reset the item data in worldData (this is a bit hacky, ideally state is managed better)
-                    const spearData = worldData.items.find(item => item.id === 'spear');
-                    if (spearData) {
-                        spearData.initialRoomId = spearOriginalSpawn.roomId;
-                        spearData.position.x = spearOriginalSpawn.position.x;
-                        spearData.position.y = spearOriginalSpawn.position.y;
-                        spearData.position.z = spearOriginalSpawn.position.z;
-                         console.log(`Spear data reset to Room ${spearData.initialRoomId} at (${spearData.position.x}, ${spearData.position.y}, ${spearData.position.z})`);
-                    }
 
-                    updateItemVisibility(); // Update visibility (should show spear in spawn room if player is there)
+                    updateItemVisibility(); // Update visibility
                 }
             }
         } else {
@@ -471,16 +525,14 @@ function animate() {
              spearProjectile.active = false;
              spearProjectile.mesh.visible = false;
              spearProjectile.velocity.set(0, 0, 0);
-             const spearData = worldData.items.find(item => item.id === 'spear');
-             if (spearData) {
-                 spearData.initialRoomId = spearOriginalSpawn.roomId;
-                 spearData.position.x = spearOriginalSpawn.position.x;
-                 spearData.position.y = spearOriginalSpawn.position.y;
-                 spearData.position.z = spearOriginalSpawn.position.z;
-             }
+             // No need to reset worldData.items for spear here either.
+             console.log(`Spear marked for respawn in Room ${spearOriginalSpawn.roomId}`);
              updateItemVisibility();
         }
     }
+    // --- End Spear Projectile Logic ---
+// --- End Spear Projectile Logic ---
+// (Removed duplicated boundary check logic from here)
     // --- End Spear Projectile Logic ---
 
 
@@ -500,6 +552,149 @@ function animate() {
         }
     }
     // --- End Player-Spear Retrieval Logic ---
+
+
+    // --- Bird NPC Logic ---
+    if (bird.active) {
+        // Move bird
+        bird.mesh.position.add(bird.velocity);
+
+        // Animate wings
+        bird.wingAngle += bird.wingDirection * BIRD_WING_SPEED;
+        if (Math.abs(bird.wingAngle) > BIRD_WING_MAX_ANGLE) {
+            bird.wingDirection *= -1; // Reverse flap direction
+            bird.wingAngle = bird.wingDirection * BIRD_WING_MAX_ANGLE; // Clamp angle
+        }
+        bird.mesh.userData.leftWing.rotation.z = bird.wingAngle; // Rotate around Z axis (relative to body)
+        bird.mesh.userData.rightWing.rotation.z = -bird.wingAngle; // Rotate opposite direction
+
+        // Attach carried object visually (if any)
+        if (bird.targetObject) {
+            if (bird.targetObjectType === 'player') {
+                // Force player position
+                player.position.copy(bird.mesh.position);
+                player.position.y = BIRD_Y_POSITION - 0.5; // Slightly below bird
+            } else {
+                const targetMesh = itemMeshes.get(bird.targetObjectId);
+                if (targetMesh) {
+                    targetMesh.position.copy(bird.mesh.position);
+                    targetMesh.position.y = BIRD_Y_POSITION - 0.5; // Slightly below bird
+                }
+            }
+        }
+
+        // Check if bird reached the midpoint (for 'take' action) or endpoint
+        const distanceToEnd = bird.mesh.position.distanceTo(bird.endPos);
+        const distanceToCenter = bird.mesh.position.length(); // Approx distance to center (0,0) - adjust if center isn't 0,0
+        const centerThreshold = 7; // How close to the center to trigger action
+
+        // State transitions and actions
+        if (bird.state === 'entering' && distanceToCenter < centerThreshold) { // Reached near center area
+             console.log("Bird reached center area");
+            if (bird.action === 'take') {
+                // Pick up the object
+                console.log(`Bird picking up ${bird.targetObjectType}: ${bird.targetObjectId || 'player'}`);
+                if (bird.targetObjectType === 'player') {
+                    // Player is already visually attached
+                } else {
+                    const targetMesh = itemMeshes.get(bird.targetObjectId);
+                    if (targetMesh) {
+                        targetMesh.visible = true; // Ensure visible while carried
+                    }
+                }
+                bird.state = 'crossing'; // Now just crossing to exit
+            } else { // 'bring' action
+                // Drop the object
+                console.log(`Bird dropping ${bird.targetObjectType}: ${bird.targetObjectId || 'player'}`);
+                if (bird.targetObject) {
+                    const targetItemData = worldData.items.find(item => item.id === bird.targetObjectId);
+                    const dropPosition = new THREE.Vector3(
+                        (Math.random() - 0.5) * 8, // Random X within ~room bounds
+                        0, // Y depends on object type
+                        (Math.random() - 0.5) * 8  // Random Z within ~room bounds
+                    );
+
+                    if (bird.targetObjectType === 'player') {
+                        player.position.set(dropPosition.x, 0.25, dropPosition.z); // Place player on ground
+                        console.log(`Player dropped at (${player.position.x.toFixed(1)}, ${player.position.z.toFixed(1)})`);
+                    } else if (targetItemData) {
+                        const targetMesh = itemMeshes.get(bird.targetObjectId);
+                        const dropY = targetItemData.isDragon ? 0.4 : 0.2;
+                        if (targetMesh) {
+                            targetMesh.position.set(dropPosition.x, dropY, dropPosition.z); // Place item/dragon on ground
+                            targetMesh.visible = true; // Ensure it's visible after drop
+                        }
+                        // Update world data
+                        targetItemData.currentRoomId = currentRoomId;
+                        //targetItemData.position.copy(dropPosition); // Update persistent position
+                        // Update persistent position
+                        targetItemData.position.x = dropPosition.x;
+                        targetItemData.position.y = dropPosition.y;
+                        targetItemData.position.z = dropPosition.z;
+
+                        targetItemData.position.y = dropY; // Ensure correct Y in data
+                         console.log(`${bird.targetObjectId} dropped at (${targetItemData.position.x.toFixed(1)}, ${targetItemData.position.z.toFixed(1)}) in room ${currentRoomId}`);
+                    }
+                    bird.targetObject = null; // Bird is no longer carrying anything
+                    bird.targetObjectId = null;
+                    bird.targetObjectType = null;
+                    updateItemVisibility(); // Refresh visibility based on new item location
+                }
+                bird.state = 'crossing'; // Now just crossing to exit
+            }
+        } else if (distanceToEnd < 1.0) { // Reached exit edge
+             console.log("Bird reached exit edge");
+            bird.state = 'exiting';
+            bird.active = false;
+            bird.mesh.visible = false;
+
+            if (bird.action === 'take' && bird.targetObject) {
+                 const targetItemData = worldData.items.find(item => item.id === bird.targetObjectId);
+
+                 if (bird.targetObjectType === 'player') {
+                     // Player position will be reset randomly upon entering the new room by the transition logic
+                     console.log("Bird took player - position will be randomized on room entry");
+                     // Find a random *other* room for the player
+                     const possibleRooms = worldData.rooms.filter(r => r.id !== currentRoomId);
+                     if (possibleRooms.length > 0) {
+                         const targetRoomId = possibleRooms[Math.floor(Math.random() * possibleRooms.length)].id;
+                         // Set a flag or store data for the room transition logic to handle
+                         player.userData.forceNextRoomId = targetRoomId;
+                         console.log(`Player will be moved to room ${targetRoomId}`);
+                     } else {
+                         console.log("Bird couldn't find another room to take the player to.");
+                         // Drop player back in current room?
+                         player.position.set(0, 0.25, 0); // Drop at center for now
+                     }
+                 } else if (targetItemData) {
+                    // Find a random *other* room to drop the item in
+                    const possibleRooms = worldData.rooms.filter(r => r.id !== currentRoomId);
+                    if (possibleRooms.length > 0) {
+                        const targetRoom = possibleRooms[Math.floor(Math.random() * possibleRooms.length)];
+                        targetItemData.currentRoomId = targetRoom.id;
+                        targetItemData.position.set(0, targetItemData.isDragon ? 0.4 : 0.2, 0); // Default position in new room
+                        console.log(`${bird.targetObjectId} taken by bird to room ${targetRoom.id}`);
+                        updateItemVisibility(); // Hide item from current room
+                    } else {
+                         console.log("Bird couldn't find another room to take the item to.");
+                         targetItemData.currentRoomId = null; // Remove from world state
+                         updateItemVisibility();
+                    }
+                 }
+            } // End if (bird.action === 'take' && bird.targetObject)
+
+            // Reset bird state fully
+            bird.targetObject = null;
+            bird.targetObjectId = null;
+            bird.targetObjectType = null;
+            bird.action = null;
+            bird.state = 'inactive';
+        } // End else if (distanceToEnd < 1.0)
+    } // End if (bird.active)
+    // --- End Bird NPC Logic ---
+
+    // Dragon movement logic (only move if not defeated)
+    // (Removed duplicated bird logic from here)
 
 
     // Dragon movement logic (only move if not defeated)
@@ -529,8 +724,9 @@ function animate() {
     });
 
 
-    // Room transition logic (largely unchanged, but ensure updateItemVisibility is called)
-    let transitioned = false;
+    // --- Room Transition Logic ---
+    let transitioned = false; // Flag to check if transition happened
+    let playerMovedToNewRoom = false; // Flag to check if transition happened
     // ... (boundary checks N, S, E, W - check for locked doors etc.) ...
     // Check North boundary
     if (player.position.z < -halfRoomSize) {
@@ -554,6 +750,7 @@ function animate() {
                 currentRoomId = targetRoomId;
                 player.position.z = halfRoomSize - 0.1;
                 transitioned = true;
+                playerMovedToNewRoom = true; // Set the flag here!
             } else {
                  player.position.z = -halfRoomSize;
             }
@@ -569,6 +766,7 @@ function animate() {
             currentRoomId = connection;
             player.position.z = -halfRoomSize + 0.1;
             transitioned = true;
+            playerMovedToNewRoom = true; // Set the flag here!
         } else {
             player.position.z = halfRoomSize;
         }
@@ -581,6 +779,7 @@ function animate() {
              currentRoomId = connection;
              player.position.x = halfRoomSize - 0.1;
              transitioned = true;
+             playerMovedToNewRoom = true; // Set the flag here!
          } else {
              player.position.x = -halfRoomSize;
          }
@@ -593,13 +792,13 @@ function animate() {
              currentRoomId = connection;
              player.position.x = -halfRoomSize + 0.1;
              transitioned = true;
+             playerMovedToNewRoom = true; // Set the flag here!
          } else {
              player.position.x = halfRoomSize;
          }
     }
 
-
-    if (transitioned) {
+    if (playerMovedToNewRoom) { // Use the renamed flag
         // ... (clear doors, update room, ground color) ...
         while (doorGroup.children.length > 0) {
             doorGroup.remove(doorGroup.children[0]);
@@ -612,11 +811,19 @@ function animate() {
         console.log(`[Transition] Entered room: ${currentRoom.name} (ID: ${currentRoomId})`);
         updateUI();
 
+        // --- Bird Trigger Logic ---
+        // Only trigger if player moved rooms AND bird is not already active
+        if (!bird.active && Math.random() < BIRD_SPAWN_CHANCE) {
+            console.log("Bird sequence triggered!");
+            startBirdSequence();
+        }
+        // --- End Bird Trigger Logic ---
+
         // ... (win condition check) ...
         if (!isGameWon && currentRoom.winConditionItem && inventory.includes(currentRoom.winConditionItem)) { // Check !isGameWon to set it only once
              console.log("YOU WIN! You brought the Chalice back to the Gold Castle!");
              isGameWon = true; // Set win state
-             gameMessageElement.textContent = "YOU WIN! You brought the Chalice back to the Gold Castle!"; // Display win message
+             gameMessageElement.textContent = "\n YOU WIN! You brought the Chalice back to the Gold Castle!"; // Display win message
              // Player input will effectively stop as movement/actions aren't processed after win flash starts
              // No alert, no return, let the animation loop continue for flashing
          }
@@ -626,6 +833,7 @@ function animate() {
     const pickupDistance = 0.5;
     const dragonCollisionDistance = 0.57; // Adjusted for slimmer dragon shape (belly is 0.6 wide/deep)
 
+    // --- Player-Item/Dragon Collision Logic ---
     itemMeshes.forEach((itemMesh, itemId) => {
         if (!itemMesh.visible) return; // Skip invisible items/dragons
 
@@ -637,7 +845,7 @@ function animate() {
         if (itemMesh.userData.isDragon && !defeatedDragons.has(itemId)) { // Check if dragon and not defeated
             // Player-Dragon collision (death condition)
             if (distance < dragonCollisionDistance) {
-                // Player is eaten (Sword doesn't protect from direct contact)
+                // Player is eaten (Spear doesn't protect from direct contact)
                 triggerSceneFlicker(0xff0000, 300);
                 console.log(`You were eaten by ${itemData.name}! GAME OVER`);
                 alert(`You were eaten by ${itemData.name}! GAME OVER`);
@@ -646,18 +854,17 @@ function animate() {
                 inventory.length = 0; // Clear inventory
                 defeatedDragons.clear(); // Reset defeated dragons on death
                 isGameWon = false; // Reset win state on death
-                // Reset sword state if it was thrown/stuck
+                // Reset spear state if it was thrown/stuck
                 if (spearState !== 'inventory') {
                     spearState = 'respawned'; // Mark for respawn
                     spearProjectile.active = false;
                     if (spearProjectile.mesh) spearProjectile.mesh.visible = false;
                     const spearData = worldData.items.find(item => item.id === 'spear');
-                     if (spearData) {
-                         spearData.initialRoomId = spearOriginalSpawn.roomId;
-                         spearData.position.x = spearOriginalSpawn.position.x;
-                         spearData.position.y = spearOriginalSpawn.position.y;
-                         spearData.position.z = spearOriginalSpawn.position.z;
-                     }
+                     // Spear state is already set to 'respawned'.
+                     // updateItemVisibility will handle placing it correctly
+                     // when the player enters the spear's original room.
+                     // No need to manually reset worldData here.
+                     console.log("Spear marked for respawn due to player death.");
                 }
                 currentRoomId = worldData.startRoomId;
                 currentRoom = getRoomById(currentRoomId);
@@ -668,18 +875,23 @@ function animate() {
                 createDoorVisuals(currentRoom);
                 return; // Stop processing this frame
             }
-        } else if (!itemMesh.userData.isDragon && !inventory.includes(itemId)) {
-            // Item pickup collision (excluding sword pickup here, handled by retrieval logic)
-            if (itemId !== 'spear' && distance < pickupDistance) {
-                inventory.push(itemId);
+        } else if (!itemMesh.userData.isDragon && !inventory.includes(itemId) && !(bird.active && bird.targetObjectId === itemId)) {
+            // Item pickup collision (exclude dragons, items in inventory, items carried by bird)
+            if (itemId !== 'spear' && distance < pickupDistance) { // Spear pickup handled separately
+                inventory.push(itemId); // Add item to inventory
+                // Update item's state in worldData
+                const pickedUpItemData = worldData.items.find(item => item.id === itemId);
+                if (pickedUpItemData) {
+                    pickedUpItemData.currentRoomId = null; // Indicate it's not in any room (in inventory)
+                }
                 triggerSceneFlicker(0x888888);
-                itemMesh.visible = false;
+                itemMesh.visible = false; // Hide mesh
                 console.log(`Picked up: ${itemData.name}`);
                 console.log("Inventory:", inventory);
                 updateUI();
-                // updateItemVisibility(); // Called during room transition or after pickup implicitly
+                updateItemVisibility(); // Update visibility state immediately
             }
-            // Handle picking up the respawned sword
+            // Handle picking up the respawned spear
             else if (itemId === 'spear' && spearState === 'respawned' && distance < pickupDistance) {
                  console.log("Picked up respawned spear!");
                  triggerSceneFlicker(0xAAAAFF, 150); // Blue flicker
@@ -713,7 +925,143 @@ function animate() {
     // --- End Win Flashing Logic ---
 
     renderer.render(scene, camera);
+  updateItemVisibility();
+} // Correct closing brace for animate() function
+
+// --- Bird Sequence Setup Function ---
+function startBirdSequence() {
+    if (bird.active) return; // Don't start if already active
+
+    const roomSize = 10;
+    const halfRoomSize = roomSize / 2;
+    const edgeOffset = 1.5; // How far from the exact edge the bird starts/ends
+
+    // 1. Decide Action: Bring or Take?
+    const movableObjectsInRoom = worldData.items.filter(item =>
+        item.currentRoomId === currentRoomId &&
+        !inventory.includes(item.id) &&
+        !defeatedDragons.has(item.id) &&
+        item.id !== 'spear' // Bird doesn't mess with the spear
+    );
+    const canTakePlayer = true; // Bird can always try to take the player
+    const canTake = movableObjectsInRoom.length > 0 || canTakePlayer;
+
+    const movableObjectsOutsideRoom = worldData.items.filter(item =>
+        item.currentRoomId !== currentRoomId &&
+        item.currentRoomId !== null && // Not in inventory (currentRoomId is null)
+        !defeatedDragons.has(item.id) &&
+        item.id !== 'spear'
+    );
+    const canBring = movableObjectsOutsideRoom.length > 0;
+
+    if (canTake && (!canBring || Math.random() < 0.5)) {
+        bird.action = 'take';
+    } else if (canBring) {
+        bird.action = 'bring';
+    } else {
+        console.log("Bird decided not to act (no valid targets).");
+        return; // No valid action possible
+    }
+
+    console.log(`Bird action: ${bird.action}`);
+
+    // 2. Select Target Object
+    if (bird.action === 'take') {
+        const potentialTargets = [...movableObjectsInRoom];
+        if (canTakePlayer) {
+            potentialTargets.push({ id: 'player', type: 'player', isDragon: false }); // Represent player
+        }
+        if (potentialTargets.length === 0) {
+             console.log("Bird wanted to take, but found no targets.");
+             return;
+        }
+        const target = potentialTargets[Math.floor(Math.random() * potentialTargets.length)];
+        if (target.id === 'player') {
+            bird.targetObject = player; // Reference to the player mesh
+            bird.targetObjectId = null;
+            bird.targetObjectType = 'player';
+        } else {
+            bird.targetObject = itemMeshes.get(target.id); // Reference to the item/dragon mesh
+            bird.targetObjectId = target.id;
+            bird.targetObjectType = target.isDragon ? 'dragon' : 'item';
+            // Hide the object temporarily until bird picks it up near center
+            if (bird.targetObject) bird.targetObject.visible = false;
+             else console.warn(`Bird couldn't find mesh for item to take: ${target.id}`);
+        }
+    } else { // 'bring'
+        if (movableObjectsOutsideRoom.length === 0) {
+             console.log("Bird wanted to bring, but found no targets.");
+             return;
+        }
+        const targetItemData = movableObjectsOutsideRoom[Math.floor(Math.random() * movableObjectsOutsideRoom.length)];
+        bird.targetObject = itemMeshes.get(targetItemData.id); // Reference to the mesh
+        bird.targetObjectId = targetItemData.id;
+        bird.targetObjectType = targetItemData.isDragon ? 'dragon' : 'item';
+        // Ensure the object is visible as the bird carries it in
+        if (bird.targetObject) bird.targetObject.visible = true;
+         else console.warn(`Bird couldn't find mesh for item to bring: ${targetItemData.id}`);
+    }
+
+    // Safety check if target mesh couldn't be found for item/dragon
+    if (!bird.targetObject && bird.targetObjectType !== 'player') {
+        console.error("Bird failed to find target mesh for ID:", bird.targetObjectId, " - Aborting sequence.");
+        bird.action = null; // Reset action
+        return;
+    }
+     console.log(`Bird target: ${bird.targetObjectType} ${bird.targetObjectId || '(player)'}`);
+
+
+    // 3. Determine Start and End Positions (Random Edges)
+    const edges = ['north', 'south', 'east', 'west'];
+    const startEdgeIndex = Math.floor(Math.random() * 4);
+    let endEdgeIndex = (startEdgeIndex + 2) % 4; // Opposite edge
+
+    const randomOffsetStart = (Math.random() - 0.5) * (roomSize - edgeOffset * 2); // Random point along the start edge
+    const randomOffsetEnd = (Math.random() - 0.5) * (roomSize - edgeOffset * 2); // Random point along the end edge
+
+    switch (edges[startEdgeIndex]) {
+        case 'north': bird.startPos.set(randomOffsetStart, BIRD_Y_POSITION, -halfRoomSize - edgeOffset); break;
+        case 'south': bird.startPos.set(randomOffsetStart, BIRD_Y_POSITION, halfRoomSize + edgeOffset); break;
+        case 'east': bird.startPos.set(halfRoomSize + edgeOffset, BIRD_Y_POSITION, randomOffsetStart); break;
+        case 'west': bird.startPos.set(-halfRoomSize - edgeOffset, BIRD_Y_POSITION, randomOffsetStart); break;
+    }
+
+    switch (edges[endEdgeIndex]) {
+        case 'north': bird.endPos.set(randomOffsetEnd, BIRD_Y_POSITION, -halfRoomSize - edgeOffset); break;
+        case 'south': bird.endPos.set(randomOffsetEnd, BIRD_Y_POSITION, halfRoomSize + edgeOffset); break;
+        case 'east': bird.endPos.set(halfRoomSize + edgeOffset, BIRD_Y_POSITION, randomOffsetEnd); break;
+        case 'west': bird.endPos.set(-halfRoomSize - edgeOffset, BIRD_Y_POSITION, randomOffsetEnd); break;
+    }
+
+    // 4. Set Bird State
+    bird.mesh.position.copy(bird.startPos);
+    bird.velocity.subVectors(bird.endPos, bird.startPos).normalize().multiplyScalar(BIRD_SPEED);
+    // Make bird look towards the end position
+    // Create a target point slightly below the bird's Y level for lookAt
+    const lookAtTarget = new THREE.Vector3(bird.endPos.x, BIRD_Y_POSITION - 1, bird.endPos.z);
+    bird.mesh.lookAt(lookAtTarget);
+    // bird.mesh.rotateY(Math.PI); // Adjust if model faces backward after lookAt
+
+    bird.mesh.visible = true;
+    bird.active = true;
+    bird.state = 'entering';
+    bird.wingAngle = 0;
+    bird.wingDirection = 1;
+
+    console.log(`Bird starting at (${bird.startPos.x.toFixed(1)}, ${bird.startPos.z.toFixed(1)}), ending at (${bird.endPos.x.toFixed(1)}, ${bird.endPos.z.toFixed(1)})`);
+
+    // If bringing an object, attach it visually now
+    if (bird.action === 'bring' && bird.targetObject) {
+        const targetMesh = itemMeshes.get(bird.targetObjectId);
+        if (targetMesh) {
+            targetMesh.position.copy(bird.mesh.position);
+            targetMesh.position.y = BIRD_Y_POSITION - 0.5; // Slightly below bird
+            targetMesh.visible = true; // Make sure it's visible
+        }
+    }
 }
+// --- End Bird Sequence Setup Function ---
+
 
 // Initial setup calls
 updateItemVisibility();

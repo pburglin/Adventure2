@@ -13,12 +13,12 @@ export const worldData = {
         // Add more rooms later (Black Castle, White Castle, mazes, etc.)
     ],
     items: [
-        { id: 'gold_key', name: "Gold Key", color: 0xFFD700, initialRoomId: 3, position: { x: 2, y: 0.2, z: -2 } }, // Moved to Green Dragon's room (East Wing)
-        { id: 'chalice', name: "Chalice", color: 0xC0C0C0, initialRoomId: 2, position: { x: 0, y: 0.25, z: 0 } }, // Moved to Red Dragon's room (Blue Maze 1)
-        { id: 'spear', name: "Spear", color: 0xAAAAFF, initialRoomId: 4, position: { x: -2, y: 0.25, z: 2 } }, // In West Wing
-        { id: 'dragon_yorgle', name: "Yorgle (Yellow Dragon)", color: 0xFFFF00, initialRoomId: 1, position: { x: -2, y: 0.5, z: 0 }, isDragon: true }, // In Main Hall
-        { id: 'dragon_grundle', name: "Grundle (Green Dragon)", color: 0x00FF00, initialRoomId: 3, position: { x: 0, y: 0.5, z: 0 }, isDragon: true }, // In East Wing
-        { id: 'dragon_rhindle', name: "Rhindle (Red Dragon)", color: 0xFF0000, initialRoomId: 2, position: { x: 0, y: 0.5, z: 0 }, isDragon: true }, // In Blue Maze 1
+        { id: 'gold_key', name: "Gold Key", color: 0xFFD700, currentRoomId: 3, position: { x: 2, y: 0.2, z: -2 } }, // Location can change
+        { id: 'chalice', name: "Chalice", color: 0xC0C0C0, currentRoomId: 2, position: { x: 0, y: 0.25, z: 0 } }, // Location can change
+        { id: 'spear', name: "Spear", color: 0xAAAAFF, currentRoomId: 4, position: { x: -2, y: 0.25, z: 2 } }, // Location can change (but also has special respawn)
+        { id: 'dragon_yorgle', name: "Yorgle (Yellow Dragon)", color: 0xFFFF00, currentRoomId: 1, position: { x: -2, y: 0.5, z: 0 }, isDragon: true }, // Location can change
+        { id: 'dragon_grundle', name: "Grundle (Green Dragon)", color: 0x00FF00, currentRoomId: 3, position: { x: 0, y: 0.5, z: 0 }, isDragon: true }, // Location can change
+        { id: 'dragon_rhindle', name: "Rhindle (Red Dragon)", color: 0xFF0000, currentRoomId: 2, position: { x: 0, y: 0.5, z: 0 }, isDragon: true }, // Location can change
         // Add more items later (bridge, magnet, etc.)
     ],
     startRoomId: 0,
