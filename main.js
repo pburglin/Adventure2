@@ -674,7 +674,10 @@ function animate() {
                     if (possibleRooms.length > 0) {
                         const targetRoom = possibleRooms[Math.floor(Math.random() * possibleRooms.length)];
                         targetItemData.currentRoomId = targetRoom.id;
-                        targetItemData.position.set(0, targetItemData.isDragon ? 0.4 : 0.2, 0); // Default position in new room
+                        //targetItemData.position.set(0, targetItemData.isDragon ? 0.4 : 0.2, 0); // Default position in new room
+                        targetItemData.position.x = 0;
+                        targetItemData.position.y = targetItemData.isDragon ? 0.4 : 0.2;
+                        targetItemData.position.z = 0;
                         console.log(`${bird.targetObjectId} taken by bird to room ${targetRoom.id}`);
                         updateItemVisibility(); // Hide item from current room
                     } else {
@@ -825,7 +828,7 @@ function animate() {
         if (!isGameWon && currentRoom.winConditionItem && inventory.includes(currentRoom.winConditionItem)) { // Check !isGameWon to set it only once
              console.log("YOU WIN! You brought the Chalice back to the Gold Castle!");
              isGameWon = true; // Set win state
-             gameMessageElement.textContent = "\n YOU WIN! You brought the Chalice back to the Gold Castle!"; // Display win message
+             gameMessageElement.textContent = "YOU WIN! You brought the Chalice back to the Gold Castle!"; // Display win message
              // Player input will effectively stop as movement/actions aren't processed after win flash starts
              // No alert, no return, let the animation loop continue for flashing
          }
