@@ -17,9 +17,7 @@ let lastMoveDirection = new THREE.Vector3(0, 0, 0); // Track last movement direc
 
 // Keydown listener moved back to main.js to handle spear throwing logic
 
-window.addEventListener('keyup', (event) => {
-    keyboardState[event.code] = false;
-});
+// Key listeners are now centralized in main.js
 
 // Calculate proposed movement without applying it
 function getProposedPosition() {

@@ -13,6 +13,22 @@ function updateUI(currentRoom, inventory) {
         const inventoryText = inventory.length > 0 ? inventory.join(', ') : 'Empty';
         inventoryElement.textContent = `Inventory: ${inventoryText}`;
     }
+
+    // --- NEW: Update Spear Touch Button Visibility ---
+    const touchSpearButton = document.getElementById('touch-spear');
+    // Only try to update if the button exists (i.e., touch controls were initialized)
+    if (touchSpearButton) {
+        const hasSpear = inventory.includes('spear');
+        if (hasSpear) {
+            touchSpearButton.classList.remove('hidden');
+            // console.log("UI Update: Showing spear button");
+        } else {
+            touchSpearButton.classList.add('hidden');
+            // console.log("UI Update: Hiding spear button");
+        }
+    }
+    // --- End Spear Touch Button Visibility ---
+
     // Note: gameMessageElement is updated directly in main.js for win/lose conditions
 }
 

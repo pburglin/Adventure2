@@ -110,9 +110,101 @@ window.addEventListener('keydown', (event) => {
     // --- End Spear Throw Logic ---
 });
 
-window.addEventListener('keyup', (event) => { // Keep keyup listener for general state
+window.addEventListener('keyup', (event) => {
     keyboardState[event.code] = false;
 });
+
+// --- NEW: Mobile Touch Controls ---
+
+function isMobileDevice() {
+    // Basic check, might need refinement for specific cases
+    return /Mobi|Android/i.test(navigator.userAgent) || navigator.maxTouchPoints > 0;
+}
+
+function initTouchControls() {
+    if (!isMobileDevice()) {
+        console.log("Desktop device detected, touch controls disabled.");
+        return; // Don't initialize if not mobile
+    }
+
+    console.log("Mobile device detected, initializing touch controls.");
+
+    const touchControlsContainer = document.getElementById('touch-controls');
+    const touchUp = document.getElementById('touch-up');
+    const touchDown = document.getElementById('touch-down');
+    const touchLeft = document.getElementById('touch-left');
+    const touchRight = document.getElementById('touch-right');
+    const touchSpear = document.getElementById('touch-spear');
+
+    if (!touchControlsContainer || !touchUp || !touchDown || !touchLeft || !touchRight || !touchSpear) {
+        console.error("Touch control elements not found!");
+        return;
+    }
+
+    // Show the controls
+    touchControlsContainer.classList.remove('hidden');
+
+    // Helper to update keyboard state and prevent default touch behavior
+    const handleTouch = (element, keyCode, isStart) => {
+        element.addEventListener(isStart ? 'touchstart' : 'touchend', (event) => {
+            event.preventDefault(); // Prevent scrolling/zooming
+            keyboardState[keyCode] = isStart;
+            // console.log(`Touch ${isStart ? 'start' : 'end'} on ${element.id}, ${keyCode}: ${keyboardState[keyCode]}`);
+        }, { passive: false }); // Need passive: false to allow preventDefault
+
+        // Also handle touch cancel/leave
+         element.addEventListener('touchcancel', (event) => {
+             event.preventDefault();
+             keyboardState[keyCode] = false;
+         }, { passive: false });
+         element.addEventListener('touchmove', (event) => {
+             // If touch moves outside the element, treat it as touchend
+             const touch = event.touches[0];
+             const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
+             if (elementUnderTouch !== element) {
+                 keyboardState[keyCode] = false;
+             }
+         }, { passive: false });
+    };
+
+    // Assign listeners to directional pads
+    handleTouch(touchUp, 'KeyW', true);
+    handleTouch(touchUp, 'KeyW', false);
+    handleTouch(touchDown, 'KeyS', true);
+    handleTouch(touchDown, 'KeyS', false);
+    handleTouch(touchLeft, 'KeyA', true);
+    handleTouch(touchLeft, 'KeyA', false);
+    handleTouch(touchRight, 'KeyD', true);
+    handleTouch(touchRight, 'KeyD', false);
+
+    // Spear button listener
+    touchSpear.addEventListener('touchstart', (event) => {
+        event.preventDefault(); // Prevent default behavior
+        console.log("Spear button touched");
+
+        // Check inventory and spear state (similar to spacebar logic)
+        if (inventory.includes('spear') && spearStateRef.state === 'inventory') {
+            // Use the last *valid* move direction for throwing
+            if (lastMoveDirection.lengthSq() > 0) {
+                console.log("Attempting to throw spear via touch!");
+                // Call imported function, passing necessary state
+                throwSpear(lastMoveDirection, spearProjectile, spearStateRef, inventory, () => updateUI(currentRoom, inventory), player, currentRoomId);
+                // Hide spear button immediately after throw attempt? Or rely on inventory update?
+                // Let's rely on inventory update via updateUI for now.
+            } else {
+                console.log("Cannot throw spear: No recent movement direction.");
+                // Maybe provide feedback? For now, just log.
+            }
+        } else {
+             console.log("Cannot throw spear: Not in inventory or not ready.");
+        }
+    }, { passive: false });
+
+     // Hide spear button if spear not in inventory initially or after throwing
+     // We need a way to update this dynamically. Let's modify updateUI.
+}
+
+// --- End Mobile Touch Controls ---
 
 // throwSpear function is now imported from spear.js
 // Window resize is handled in sceneSetup.js
@@ -128,7 +220,7 @@ function animate() {
     const playerBox = new THREE.Box3().setFromCenterAndSize(proposedPosition, playerSize);
 
     let canMove = true; // Assume movement is possible initially
-    const currentRoom = getRoomById(currentRoomId); // Get current room data
+    const localRoom = getRoomById(currentRoomId); // Get current room data
 
     if (currentRoom?.walls) { // Check if the room has walls defined
         currentRoom.walls.forEach(wall => {
@@ -288,14 +380,23 @@ function animate() {
     if (playerMovedToNewRoom) { // Use the renamed flag
         // ... (clear doors, update room, ground color) ...
         // doorGroup is imported from room.js
+        // Clear existing doors and walls first
         while (doorGroup.children.length > 0) {
             doorGroup.remove(doorGroup.children[0]);
         }
+        
+        // Get new room data
         currentRoom = getRoomById(currentRoomId);
-        updateGroundColor(currentRoom.color); // Use imported function
-        //console.log(`[Transition] Set ground color to: ${currentRoom.color.toString(16)}`);
-        updateItemVisibility(worldData, currentRoomId, inventory, defeatedDragons, spearStateRef.state, spearOriginalSpawn); // CRUCIAL: Update visibility after room change
-        createDoorVisuals(currentRoom); // Call imported function
+
+        // Debug logging to trace room transitions
+        console.log("[DEBUG] Transitioning to roomId:", currentRoomId, "Room name:", currentRoom.name, "Room object:", currentRoom);
+
+        // Create new room visuals before updating other systems
+        createDoorVisuals(currentRoom);
+        updateGroundColor(currentRoom.color);
+        
+        // Update item visibility last
+        updateItemVisibility(worldData, currentRoomId, inventory, defeatedDragons, spearStateRef.state, spearOriginalSpawn);
         console.log(`[Transition] Entered room: ${currentRoom.name} (ID: ${currentRoomId})`);
         updateUI(currentRoom, inventory); // Call imported UI update
 
@@ -408,7 +509,7 @@ function animate() {
     // --- End Win Flashing Logic ---
 
     renderer.render(scene, camera);
-  updateItemVisibility(worldData, currentRoomId, inventory, defeatedDragons, spearStateRef.state, spearOriginalSpawn);
+    updateItemVisibility(worldData, currentRoomId, inventory, defeatedDragons, spearStateRef.state, spearOriginalSpawn);
 } // Correct closing brace for animate() function
 
 // startBirdSequence function is imported from bird.js
@@ -417,4 +518,5 @@ function animate() {
 updateItemVisibility(worldData, currentRoomId, inventory, defeatedDragons, spearStateRef.state, spearOriginalSpawn);
 updateUI(currentRoom, inventory); // Call imported UI update
 createDoorVisuals(currentRoom); // Call imported function
+//initTouchControls(); // Initialize touch controls AFTER UI elements exist
 animate(); // Start the loop
