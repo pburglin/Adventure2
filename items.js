@@ -54,11 +54,69 @@ function createItemMesh(itemData, spearProjectileRef) { // Pass spearProjectileR
         itemMeshes.set(itemData.id, mesh);
         return; // Skip default mesh creation
 
+    } else if (itemData.id === 'chalice') {
+        // Trophy-style chalice with base, stem, and cup
+        const chaliceGroup = new THREE.Group();
+        
+        // Base (wide flat square)
+        const baseGeo = new THREE.BoxGeometry(0.5, 0.1, 0.5);
+        const baseMesh = new THREE.Mesh(baseGeo, material);
+        
+        // Stem (thin vertical center)
+        const stemGeo = new THREE.BoxGeometry(0.1, 0.4, 0.1);
+        const stemMesh = new THREE.Mesh(stemGeo, material);
+        stemMesh.position.y = 0.25;
+        
+        // Cup (boxy trapezoid)
+        const cupGeo = new THREE.BoxGeometry(0.6, 0.5, 0.6);
+        const cupMesh = new THREE.Mesh(cupGeo, material);
+        cupMesh.position.y = 0.55;
+        
+        chaliceGroup.add(baseMesh);
+        chaliceGroup.add(stemMesh);
+        chaliceGroup.add(cupMesh);
+        
+        // Add group directly to scene like dragons
+        chaliceGroup.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
+        chaliceGroup.userData.itemId = itemData.id;
+        chaliceGroup.visible = false;
+        scene.add(chaliceGroup);
+        itemMeshes.set(itemData.id, chaliceGroup);
+        return; // Skip default mesh creation
+        
     } else if (itemData.id === 'spear') {
         // Spear is a tall thin box
         geometry = new THREE.BoxGeometry(0.1, 1.0, 0.05);
     } else if (itemData.id === 'gold_key') {
-        geometry = new THREE.CylinderGeometry(0.1, 0.1, 0.4, 8);
+        // Composite key with head, shaft, and bit
+        const keyGroup = new THREE.Group();
+        
+        // Head (flat rectangular box)
+        const headGeo = new THREE.BoxGeometry(0.3, 0.1, 0.05);
+        const headMesh = new THREE.Mesh(headGeo, material);
+        headMesh.position.y = 0.15;
+        
+        // Shaft (thin vertical prism)
+        const shaftGeo = new THREE.BoxGeometry(0.05, 0.3, 0.05);
+        const shaftMesh = new THREE.Mesh(shaftGeo, material);
+        shaftMesh.position.y = -0.1;
+        
+        // Bit (notched end)
+        const bitGeo = new THREE.BoxGeometry(0.05, 0.1, 0.05);
+        const bitMesh = new THREE.Mesh(bitGeo, material);
+        bitMesh.position.set(0, -0.25, 0);
+        
+        keyGroup.add(headMesh);
+        keyGroup.add(shaftMesh);
+        keyGroup.add(bitMesh);
+        
+        // Add group directly to scene like dragons
+        keyGroup.position.set(itemData.position.x, itemData.position.y, itemData.position.z);
+        keyGroup.userData.itemId = itemData.id;
+        keyGroup.visible = false;
+        scene.add(keyGroup);
+        itemMeshes.set(itemData.id, keyGroup);
+        return; // Skip default mesh creation
     } else {
         geometry = new THREE.BoxGeometry(0.3, 0.3, 0.3);
     }
