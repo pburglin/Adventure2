@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { scene, camera, renderer, triggerSceneFlicker, originalBackgroundColor } from './sceneSetup.js'; // Added originalBackgroundColor
-import { player, keyboardState, lastMoveDirection, updatePlayerMovement } from './player.js';
+import { player, keyboardState, lastMoveDirection, getProposedPosition } from './player.js';
 import { itemMeshes, createItemMesh, updateItemVisibility } from './items.js';
 import { throwSpear, updateSpearProjectile, checkSpearRetrieval, pickupRespawnedSpear } from './spear.js';
 import { BIRD_SPAWN_CHANCE, createBirdMesh, startBirdSequence, updateBirdAnimation } from './bird.js';
@@ -122,9 +122,34 @@ window.addEventListener('keyup', (event) => { // Keep keyup listener for general
 function animate() {
     requestAnimationFrame(animate);
 
-    // --- Player Movement ---
-    updatePlayerMovement(); // Call the function from player.js
-    // --- End Player Movement ---
+    // --- Player Movement & Collision ---
+    const proposedPosition = getProposedPosition(); // Get potential next position
+    const playerSize = new THREE.Vector3(0.5, 0.5, 0.5); // Player dimensions
+    const playerBox = new THREE.Box3().setFromCenterAndSize(proposedPosition, playerSize);
+
+    let canMove = true; // Assume movement is possible initially
+    const currentRoom = getRoomById(currentRoomId); // Get current room data
+
+    if (currentRoom?.walls) { // Check if the room has walls defined
+        currentRoom.walls.forEach(wall => {
+            // Create a bounding box for the wall
+            const wallSize = new THREE.Vector3(wall.size.width, wall.size.height, wall.size.depth);
+            const wallPosition = new THREE.Vector3(wall.position.x, wall.position.y, wall.position.z);
+            const wallBox = new THREE.Box3().setFromCenterAndSize(wallPosition, wallSize);
+
+            // Check if the player's proposed bounding box intersects with the wall's bounding box
+            if (playerBox.intersectsBox(wallBox)) {
+                canMove = false; // Collision detected, movement is not allowed
+                // console.log("Collision detected with wall!"); // Optional: for debugging
+            }
+        });
+    }
+
+    // Only update the player's actual position if no collision was detected
+    if (canMove) {
+        player.position.copy(proposedPosition);
+    }
+    // --- End Player Movement & Collision ---
 
     // --- Spear Projectile Logic ---
     // Call imported function, passing necessary state

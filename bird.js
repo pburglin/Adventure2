@@ -8,7 +8,7 @@ const BIRD_SPEED = 0.08;
 const BIRD_WING_SPEED = 0.05;
 const BIRD_WING_MAX_ANGLE = Math.PI / 4; // 45 degrees flap
 const BIRD_Y_POSITION = 0.75; // How high the bird flies
-const BIRD_SPAWN_CHANCE = 0.1; // 10% chance
+const BIRD_SPAWN_CHANCE = 0.25; // 25% chance
 
 // Bird NPC State (managed externally, passed as reference)
 // let bird = { ... };

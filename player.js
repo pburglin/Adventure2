@@ -21,30 +21,23 @@ window.addEventListener('keyup', (event) => {
     keyboardState[event.code] = false;
 });
 
-// Function to update player movement based on keyboard state
-function updatePlayerMovement() {
-    if (!player.isAlive) return; // Stop movement if dead
-    let moveDirection = new THREE.Vector3(0, 0, 0);
-    if (keyboardState['KeyW'] || keyboardState['ArrowUp']) {
-        moveDirection.z = -1;
-    }
-    if (keyboardState['KeyS'] || keyboardState['ArrowDown']) {
-        moveDirection.z = 1;
-    }
-    if (keyboardState['KeyA'] || keyboardState['ArrowLeft']) {
-        moveDirection.x = -1;
-    }
-    if (keyboardState['KeyD'] || keyboardState['ArrowRight']) {
-        moveDirection.x = 1;
-    }
+// Calculate proposed movement without applying it
+function getProposedPosition() {
+    const moveDirection = new THREE.Vector3(
+        (keyboardState['KeyD'] || keyboardState['ArrowRight']) ? 1 :
+        (keyboardState['KeyA'] || keyboardState['ArrowLeft']) ? -1 : 0,
+        0,
+        (keyboardState['KeyS'] || keyboardState['ArrowDown']) ? 1 :
+        (keyboardState['KeyW'] || keyboardState['ArrowUp']) ? -1 : 0
+    );
 
-    // Normalize diagonal movement and update player position
-    if (moveDirection.lengthSq() > 0) { // Only normalize and move if there's input
+    const proposedPosition = player.position.clone();
+    if (moveDirection.lengthSq() > 0) {
         moveDirection.normalize();
-        player.position.x += moveDirection.x * playerSpeed;
-        player.position.z += moveDirection.z * playerSpeed;
-        lastMoveDirection.copy(moveDirection); // Store the latest valid movement direction
+        proposedPosition.addScaledVector(moveDirection, playerSpeed);
+        lastMoveDirection.copy(moveDirection);
     }
+    return proposedPosition;
 }
 
-export { player, keyboardState, playerSpeed, lastMoveDirection, updatePlayerMovement };
+export { player, keyboardState, playerSpeed, lastMoveDirection, getProposedPosition };

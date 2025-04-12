@@ -9,11 +9,31 @@ export const worldData = {
         { id: 2, name: "Throne Room", color: 0xFFFFE0, connections: { north: null, south: 1, east: null, west: null } }, // Simplified maze for now
         { id: 3, name: "East Wing", color: 0xCCCCCC, connections: { north: null, south: null, east: 5, west: 1 } }, // Connect East Wing to Throne Room
         { id: 4, name: "West Wing", color: 0xDDDDDD, connections: { north: null, south: null, east: 1, west: null } },
-        { id: 5, name: "Blue Maze 1", color: 0x0000FF, connections: { north: null, south: null, east: null, west: 3 } }, // New room
+        {
+            id: 5,
+            name: "Blue Maze 1",
+            color: 0x0000FF,
+            connections: { north: null, south: null, east: null, west: 3 },
+            walls: [
+                // Main corridor walls
+                { position: { x: -1, y: 0, z: 5 }, size: { width: 8, height: 1, depth: 0.2 } }, // North wall
+                { position: { x: -1, y: 0, z: -5 }, size: { width: 8, height: 1, depth: 0.2 } }, // South wall
+                
+                // Vertical dividers
+                { position: { x: 3, y: 0, z: -2 }, size: { width: 0.2, height: 1, depth: 6 } }, // East divider
+                { position: { x: -3, y: 0, z: 0 }, size: { width: 0.2, height: 1, depth: 6 } }, // West divider
+                
+                // Maze inner walls
+                { position: { x: 1.5, y: 0, z: 1.5 }, size: { width: 0.2, height: 1, depth: 3 } },
+                { position: { x: -1.0, y: 0, z: -1.5 }, size: { width: 0.2, height: 1, depth: 3 } },
+                { position: { x: 1.5, y: 0, z: -2 }, size: { width: 5, height: 1, depth: 0.2 } },
+                { position: { x: -2.5, y: 0, z: 2 }, size: { width: 3, height: 1, depth: 0.2 } }
+            ]
+        },
         // Add more rooms later (Black Castle, White Castle, mazes, etc.)
     ],
     items: [
-        { id: 'gold_key', name: "Gold Key", color: 0xFFD700, currentRoomId: 3, position: { x: 2, y: 0.2, z: -2 } }, // Location can change
+        { id: 'gold_key', name: "Gold Key", color: 0xFFD700, currentRoomId: 5, position: { x: 3.5, y: 0.2, z: -3.5 } }, // Top-right corner of maze
         { id: 'chalice', name: "Chalice", color: 0xC0C0C0, currentRoomId: 2, position: { x: 0, y: 0.25, z: 0 } }, // Location can change
         { id: 'spear', name: "Spear", color: 0xAAAAFF, currentRoomId: 4, position: { x: -2, y: 0.25, z: 2 } }, // Location can change (but also has special respawn)
         { id: 'dragon_yorgle', name: "Yorgle (Yellow Dragon)", color: 0xFFFF00, currentRoomId: 1, position: { x: -2, y: 0.5, z: 0 }, isDragon: true }, // Location can change
