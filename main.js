@@ -287,7 +287,8 @@ function animate() {
         if (!isGameWon && currentRoom.winConditionItem && inventory.includes(currentRoom.winConditionItem)) { // Check !isGameWon to set it only once
              console.log("YOU WIN! You brought the Chalice back to the Gold Castle!");
              isGameWon = true; // Set win state
-             gameMessageElement.textContent = "YOU WIN! You brought the Chalice back to the Gold Castle!"; // Display win message
+             gameMessageElement.textContent = "VICTORY!\nCHALICE RETURNED";
+             gameMessageElement.classList.add('victory');
              // Player input will effectively stop as movement/actions aren't processed after win flash starts
              // No alert, no return, let the animation loop continue for flashing
          }
@@ -310,11 +311,15 @@ function animate() {
             // Player-Dragon collision (death condition)
             if (distance < dragonCollisionDistance) {
                 // Player is eaten (Spear doesn't protect from direct contact)
-                triggerSceneFlicker(0xff0000, 300);
+                triggerSceneFlicker(0xff0000, 300); // Red flash for death
                 console.log(`You were eaten by ${itemData.name}! GAME OVER`);
-                alert(`You were eaten by ${itemData.name}! GAME OVER`);
+                gameMessageElement.textContent = `EATEN BY ${itemData.name.toUpperCase()}! GAME OVER`;
+                gameMessageElement.className = 'game-over'; // Replace all classes
+                player.isAlive = false; // Actually stop movement
+                /*
                 // Reset game state
                 player.position.set(0, 0.25, 0);
+                player.isAlive = true; // Reset alive state on respawn
                 inventory.length = 0; // Clear inventory
                 defeatedDragons.clear(); // Reset defeated dragons on death
                 isGameWon = false; // Reset win state on death
@@ -333,6 +338,7 @@ function animate() {
                 updateUI(currentRoom, inventory); // Call imported UI update
                 gameMessageElement.textContent = ""; // Clear message on death/reset
                 createDoorVisuals(currentRoom); // Call imported function
+                */
                 return; // Stop processing this frame
             }
         } else if (!itemMesh.userData.isDragon && !inventory.includes(itemId) && !(bird.active && bird.targetObjectId === itemId)) {

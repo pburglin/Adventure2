@@ -7,6 +7,8 @@ const playerMaterial = new THREE.MeshStandardMaterial({ color: 0xffff00 }); // Y
 const player = new THREE.Mesh(playerGeometry, playerMaterial);
 player.position.y = 0.25; // Place it slightly above the ground
 scene.add(player);
+player.isAlive = true; // Track alive state
+player.isMoving = false; // Add movement state tracking
 
 // Player Movement Setup
 const keyboardState = {};
@@ -21,8 +23,9 @@ window.addEventListener('keyup', (event) => {
 
 // Function to update player movement based on keyboard state
 function updatePlayerMovement() {
+    if (!player.isAlive) return; // Stop movement if dead
     let moveDirection = new THREE.Vector3(0, 0, 0);
-    if (keyboardState['KeyW'] || keyboardState['ArrowUp']) {
+    if (player.isAlive && (keyboardState['KeyW'] || keyboardState['ArrowUp'])) {
         moveDirection.z = -1;
     }
     if (keyboardState['KeyS'] || keyboardState['ArrowDown']) {

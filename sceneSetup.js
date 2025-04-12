@@ -43,5 +43,4 @@ function triggerSceneFlicker(flickerColorHex = 0x888888, duration = 200) {
     }, duration);
 }
 
-
 export { scene, camera, renderer, originalBackgroundColor, triggerSceneFlicker };

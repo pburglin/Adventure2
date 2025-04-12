@@ -22,4 +22,39 @@ canvas {
     margin-top: 5px;
 }
 
-/* Removed flicker keyframes and classes */
+/* Retro Text Overlays */
+#game-message {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Press Start 2P', monospace;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.5s;
+    z-index: 100;
+    width: 100%;
+}
+
+#game-message.game-over {
+    opacity: 1;
+    color: #ff0000;
+    font-size: 3em;
+    text-shadow: 4px 4px #000000;
+    animation: game-over-pulse 0.8s infinite;
+}
+
+#game-message.victory {
+    opacity: 1;
+    color: #00ff00;
+    font-size: 4em;
+    text-shadow: 4px 4px #000000;
+    line-height: 1.2;
+}
+
+@keyframes game-over-pulse {
+    0% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.1); }
+    100% { transform: translate(-50%, -50%) scale(1); }
+}
