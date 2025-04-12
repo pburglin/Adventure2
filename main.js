@@ -202,6 +202,73 @@ function initTouchControls() {
 
      // Hide spear button if spear not in inventory initially or after throwing
      // We need a way to update this dynamically. Let's modify updateUI.
+    // --- General Touch Anywhere to Move ---
+    // Allow movement by touching anywhere on the game canvas (renderer.domElement)
+    renderer.domElement.addEventListener('touchstart', function(event) {
+        // Ignore touches on D-pad/buttons
+        const touch = event.touches[0];
+        if (!touch) return;
+        const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (elementUnderTouch && (
+            elementUnderTouch.id === 'touch-up' ||
+            elementUnderTouch.id === 'touch-down' ||
+            elementUnderTouch.id === 'touch-left' ||
+            elementUnderTouch.id === 'touch-right' ||
+            elementUnderTouch.id === 'touch-spear'
+        )) {
+            return; // Let D-pad/button logic handle it
+        }
+
+        event.preventDefault();
+
+        // Get canvas bounds
+        const rect = renderer.domElement.getBoundingClientRect();
+        // Touch position in canvas coordinates
+        const x = ((touch.clientX - rect.left) / rect.width) * 2 - 1;
+        const y = -(((touch.clientY - rect.top) / rect.height) * 2 - 1);
+
+        // Project touch point into world space at player's Z
+        const touchVector = new THREE.Vector3(x, y, 0.5);
+        touchVector.unproject(camera);
+
+        // Direction from player to touch point (XZ plane)
+        const dx = touchVector.x - player.position.x;
+        const dz = touchVector.z - player.position.z;
+
+        // Determine movement direction
+        // Threshold to avoid accidental diagonal movement
+        const absDx = Math.abs(dx);
+        const absDz = Math.abs(dz);
+        // Reset all movement keys
+        keyboardState['KeyW'] = false;
+        keyboardState['KeyA'] = false;
+        keyboardState['KeyS'] = false;
+        keyboardState['KeyD'] = false;
+
+        if (absDx > absDz) {
+            if (dx > 0) {
+                keyboardState['KeyD'] = true; // Move right
+            } else {
+                keyboardState['KeyA'] = true; // Move left
+            }
+        } else {
+            if (dz > 0) {
+                keyboardState['KeyW'] = true; // Move forward
+            } else {
+                keyboardState['KeyS'] = true; // Move backward
+            }
+        }
+        // Optionally, set lastMoveDirection for spear logic
+        lastMoveDirection.set(dx, 0, dz).normalize();
+    }, { passive: false });
+
+    // Stop movement on touchend
+    renderer.domElement.addEventListener('touchend', function(event) {
+        keyboardState['KeyW'] = false;
+        keyboardState['KeyA'] = false;
+        keyboardState['KeyS'] = false;
+        keyboardState['KeyD'] = false;
+    }, { passive: false });
 }
 
 // --- End Mobile Touch Controls ---
