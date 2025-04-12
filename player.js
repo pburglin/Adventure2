@@ -25,7 +25,7 @@ window.addEventListener('keyup', (event) => {
 function updatePlayerMovement() {
     if (!player.isAlive) return; // Stop movement if dead
     let moveDirection = new THREE.Vector3(0, 0, 0);
-    if (player.isAlive && (keyboardState['KeyW'] || keyboardState['ArrowUp'])) {
+    if (keyboardState['KeyW'] || keyboardState['ArrowUp']) {
         moveDirection.z = -1;
     }
     if (keyboardState['KeyS'] || keyboardState['ArrowDown']) {
