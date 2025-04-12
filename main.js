@@ -734,73 +734,89 @@ function animate() {
     let playerMovedToNewRoom = false; // Flag to check if transition happened
     // ... (boundary checks N, S, E, W - check for locked doors etc.) ...
     // Check North boundary
-    if (player.position.z < -halfRoomSize) {
-        const connection = currentRoom.connections.north;
-        if (connection !== null) {
-            let canPass = true;
-            let targetRoomId = null;
+    if (player.position.z < -halfRoomSize) { // Check X position for door width
+            if (Math.abs(player.position.x) < doorWidth / 2) {
+            const connection = currentRoom.connections.north;
+            if (connection !== null) {
+                let canPass = true;
+                let targetRoomId = null;
 
-            if (typeof connection === 'object' && connection.lockedBy) {
-                if (!inventory.includes(connection.lockedBy)) {
-                    canPass = false;
-                    console.log("Locked! Requires:", connection.lockedBy);
+                if (typeof connection === 'object' && connection.lockedBy) {
+                    if (!inventory.includes(connection.lockedBy)) {
+                        canPass = false;
+                        console.log("Locked! Requires:", connection.lockedBy);
+                    } else {
+                        targetRoomId = connection.roomId;
+                    }
                 } else {
-                    targetRoomId = connection.roomId;
+                    targetRoomId = connection;
+                }
+
+                if (canPass && targetRoomId !== null) {
+                    currentRoomId = targetRoomId;
+                    player.position.z = halfRoomSize - 0.1;
+                    transitioned = true;
+                    playerMovedToNewRoom = true; // Set the flag here!
+                } else {
+                    player.position.z = -halfRoomSize;
                 }
             } else {
-                 targetRoomId = connection;
-            }
-
-            if (canPass && targetRoomId !== null) {
-                currentRoomId = targetRoomId;
-                player.position.z = halfRoomSize - 0.1;
-                transitioned = true;
-                playerMovedToNewRoom = true; // Set the flag here!
-            } else {
-                 player.position.z = -halfRoomSize;
+                player.position.z = -halfRoomSize;
             }
         } else {
             player.position.z = -halfRoomSize;
         }
     }
     // Check South boundary
-    else if (player.position.z > halfRoomSize) {
-        const connection = currentRoom.connections.south; // Need to handle potential locked doors here too if applicable
-        if (connection !== null) {
-             // Assuming south is never locked for now based on world.js
-            currentRoomId = connection;
-            player.position.z = -halfRoomSize + 0.1;
-            transitioned = true;
-            playerMovedToNewRoom = true; // Set the flag here!
+    else if (player.position.z > halfRoomSize) { // Check X position for door width
+        if (Math.abs(player.position.x) < doorWidth / 2) {
+            const connection = currentRoom.connections.south; // Need to handle potential locked doors here too if applicable
+            if (connection !== null) {
+                // Assuming south is never locked for now based on world.js
+                currentRoomId = connection;
+                player.position.z = -halfRoomSize + 0.1;
+                transitioned = true;
+                playerMovedToNewRoom = true; // Set the flag here!
+            } else {
+                player.position.z = halfRoomSize;
+            }
         } else {
             player.position.z = halfRoomSize;
         }
     }
     // Check West boundary
-    else if (player.position.x < -halfRoomSize) {
-         const connection = currentRoom.connections.west; // Need to handle potential locked doors here too if applicable
-         if (connection !== null) {
-             // Assuming west is never locked for now
-             currentRoomId = connection;
-             player.position.x = halfRoomSize - 0.1;
-             transitioned = true;
-             playerMovedToNewRoom = true; // Set the flag here!
-         } else {
-             player.position.x = -halfRoomSize;
-         }
+    else if (player.position.x < -halfRoomSize) { // Check Z position for door width
+        if (Math.abs(player.position.z) < doorWidth / 2) {
+            const connection = currentRoom.connections.west; // Need to handle potential locked doors here too if applicable
+            if (connection !== null) {
+                // Assuming west is never locked for now
+                currentRoomId = connection;
+                player.position.x = halfRoomSize - 0.1;
+                transitioned = true;
+                playerMovedToNewRoom = true; // Set the flag here!
+            } else {
+                player.position.x = -halfRoomSize;
+            }
+        } else {
+            player.position.x = -halfRoomSize;
+        }
     }
     // Check East boundary
-    else if (player.position.x > halfRoomSize) {
-         const connection = currentRoom.connections.east; // Need to handle potential locked doors here too if applicable
-         if (connection !== null) {
-             // Assuming east is never locked for now
-             currentRoomId = connection;
-             player.position.x = -halfRoomSize + 0.1;
-             transitioned = true;
-             playerMovedToNewRoom = true; // Set the flag here!
-         } else {
-             player.position.x = halfRoomSize;
-         }
+    else if (player.position.x > halfRoomSize) { // Check Z position for door width
+        if (Math.abs(player.position.z) < doorWidth / 2) {
+            const connection = currentRoom.connections.east; // Need to handle potential locked doors here too if applicable
+            if (connection !== null) {
+                // Assuming east is never locked for now
+                currentRoomId = connection;
+                player.position.x = -halfRoomSize + 0.1;
+                transitioned = true;
+                playerMovedToNewRoom = true; // Set the flag here!
+            } else {
+                player.position.x = halfRoomSize;
+            }
+        } else {
+            player.position.x = halfRoomSize;
+        }
     }
 
     if (playerMovedToNewRoom) { // Use the renamed flag
@@ -810,7 +826,7 @@ function animate() {
         }
         currentRoom = getRoomById(currentRoomId);
         groundMaterial.color.setHex(currentRoom.color);
-        console.log(`[Transition] Set ground color to: ${currentRoom.color.toString(16)}`);
+        //console.log(`[Transition] Set ground color to: ${currentRoom.color.toString(16)}`);
         updateItemVisibility(); // CRUCIAL: Update visibility after room change
         createDoorVisuals(currentRoom);
         console.log(`[Transition] Entered room: ${currentRoom.name} (ID: ${currentRoomId})`);
