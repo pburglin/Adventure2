@@ -585,5 +585,5 @@ function animate() {
 updateItemVisibility(worldData, currentRoomId, inventory, defeatedDragons, spearStateRef.state, spearOriginalSpawn);
 updateUI(currentRoom, inventory); // Call imported UI update
 createDoorVisuals(currentRoom); // Call imported function
-//initTouchControls(); // Initialize touch controls AFTER UI elements exist
+initTouchControls(); // Initialize touch controls AFTER UI elements exist
 animate(); // Start the loop
