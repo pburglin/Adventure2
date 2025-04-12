@@ -90,6 +90,7 @@ const redDragonSpeed = 0.035; // Faster speed for Rhindle
 
 // Key listeners
 window.addEventListener('keydown', (event) => {
+    if (!player.isAlive) return; // Prevent movement if dead
     keyboardState[event.code] = true; // Still update general keyboard state
 
     // --- Spear Throw Logic ---
@@ -111,6 +112,7 @@ window.addEventListener('keydown', (event) => {
 });
 
 window.addEventListener('keyup', (event) => {
+    if (!player.isAlive) return;
     keyboardState[event.code] = false;
 });
 
@@ -147,6 +149,7 @@ function initTouchControls() {
     // Helper to update keyboard state and prevent default touch behavior
     const handleTouch = (element, keyCode, isStart) => {
         element.addEventListener(isStart ? 'touchstart' : 'touchend', (event) => {
+            if (!player.isAlive) return;
             event.preventDefault(); // Prevent scrolling/zooming
             keyboardState[keyCode] = isStart;
             // console.log(`Touch ${isStart ? 'start' : 'end'} on ${element.id}, ${keyCode}: ${keyboardState[keyCode]}`);
@@ -205,6 +208,7 @@ function initTouchControls() {
     // --- General Touch Anywhere to Move ---
     // Allow movement by touching anywhere on the game canvas (renderer.domElement)
     renderer.domElement.addEventListener('touchstart', function(event) {
+        if (!player.isAlive) return;
         // Ignore touches on D-pad/buttons
         const touch = event.touches[0];
         if (!touch) return;
@@ -264,6 +268,7 @@ function initTouchControls() {
 
     // Stop movement on touchend
     renderer.domElement.addEventListener('touchend', function(event) {
+        if (!player.isAlive) return;
         keyboardState['KeyW'] = false;
         keyboardState['KeyA'] = false;
         keyboardState['KeyS'] = false;
@@ -505,6 +510,16 @@ function animate() {
             if (distance < dragonCollisionDistance) {
                 // Player is eaten (Spear doesn't protect from direct contact)
                 triggerSceneFlicker(0xff0000, 300); // Red flash for death
+                player.isAlive = false; // Actually stop movement
+                // Clear all movement keys so player stops immediately
+                keyboardState['KeyW'] = false;
+                keyboardState['KeyA'] = false;
+                keyboardState['KeyS'] = false;
+                keyboardState['KeyD'] = false;
+                keyboardState['ArrowUp'] = false;
+                keyboardState['ArrowDown'] = false;
+                keyboardState['ArrowLeft'] = false;
+                keyboardState['ArrowRight'] = false;
                 console.log(`You were eaten by ${itemData.name}! GAME OVER`);
                 gameMessageElement.textContent = `EATEN BY ${itemData.name.toUpperCase()}! GAME OVER`;
                 gameMessageElement.className = 'game-over'; // Replace all classes
