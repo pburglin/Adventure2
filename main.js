@@ -378,9 +378,7 @@ function animate() {
         }
     } else {
          // Ensure background is the original color if not won AND no flicker is active
-         if (!scene.background.equals(new THREE.Color(originalBackgroundColor))) { // Removed check for flickerTimeoutId
-              scene.background.setHex(originalBackgroundColor);
-         }
+         // Background color managed by triggerSceneFlicker and win condition
     }
     // --- End Win Flashing Logic ---
 
